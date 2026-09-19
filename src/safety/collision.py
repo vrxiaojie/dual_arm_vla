@@ -32,14 +32,22 @@ class CollisionChecker:
                     continue
                 # The terminal Panda link is part of the permitted gripper
                 # envelope in this compact model.
-                if other.endswith("link7_geom"):
+                if other.startswith(("left_link6_", "right_link6_", "left_link7_", "right_link7_")):
                     continue
                 if other and other != "floor":
                     self.last_reason = f"unexpected rod contact: {other}"
                     return True
             if "table_top" in names:
                 other = b if a == "table_top" else a
-                if other.endswith("base_geom") or other == "rod_geom":
+                terminal_link = other.startswith(
+                    ("left_link6_", "right_link6_", "left_link7_", "right_link7_")
+                )
+                gripper = "finger" in other or "hand_geom" in other
+                if (
+                    other.startswith(("left_arm_base_", "right_arm_base_"))
+                    or other == "rod_geom"
+                    or ((terminal_link or gripper) and state in {"PLACE", "RELEASE", "RETREAT"})
+                ):
                     continue
                 if self._side(other):
                     self.last_reason = f"arm-table collision: {other}"

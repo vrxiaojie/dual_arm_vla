@@ -154,11 +154,14 @@ class Task1Runner:
             self._move_segment(left_grasp_target + lift, right_grasp_target + lift, 300)
         if self.machine.state is not TaskState.FAILURE_STOP:
             self.machine.advance()  # TRANSPORT
-            transport = np.array([0.0, -0.42, self.config.carry_height])
+            # The mirrored right base has a small, repeatable tracking bias in
+            # this mesh model. Compensate it so the rod settles in the centre
+            # of the target region rather than at its right edge.
+            transport = np.array([-0.10, -0.42, self.config.carry_height])
             self._move_segment(left_grasp_target + transport, right_grasp_target + transport, 420)
         if self.machine.state is not TaskState.FAILURE_STOP:
             self.machine.advance()  # PLACE
-            place_shift = np.array([0.0, -0.42, 0.0])
+            place_shift = np.array([-0.10, -0.42, 0.0])
             self._move_segment(left_grasp_target + place_shift, right_grasp_target + place_shift, 320)
             for _ in range(80):
                 if not self._step():
@@ -166,6 +169,7 @@ class Task1Runner:
         if self.machine.state is not TaskState.FAILURE_STOP:
             self.machine.advance()  # RELEASE
             with self._viewer_lock():
+                self.controller.disable_arm_collisions()
                 self.controller.detach_rod()
                 self.controller.set_grippers(True)
             for _ in range(180):
@@ -173,9 +177,16 @@ class Task1Runner:
                     break
         if self.machine.state is not TaskState.FAILURE_STOP:
             self.machine.advance()  # RETREAT
-            retreat = np.array([0.0, 0.16, 0.20])
-            self._move_segment(left_grasp_target + place_shift + retreat,
-                               right_grasp_target + place_shift + retreat, 260)
+            # Retreat outward from the rod.  With the mirrored base
+            # orientations, moving both wrists in the same world-X direction
+            # would make one gripper sweep back across the placed rod.
+            left_retreat = np.array([-0.20, 0.16, 0.20])
+            right_retreat = np.array([0.20, 0.16, 0.20])
+            self._move_segment(
+                left_grasp_target + place_shift + left_retreat,
+                right_grasp_target + place_shift + right_retreat,
+                260,
+            )
         if self.machine.state is not TaskState.FAILURE_STOP:
             self.machine.advance()
 

@@ -2,12 +2,17 @@ from pathlib import Path
 
 import mujoco
 
+from src.robot_model import build_scene_xml
+
 
 class TaskScene:
     """Owns the MuJoCo model/data and stable initial state."""
 
-    def __init__(self, model_path: Path):
-        self.model = mujoco.MjModel.from_xml_path(str(model_path))
+    def __init__(self, model_path: Path, robot_urdf_path: Path | None = None):
+        if robot_urdf_path is None:
+            robot_urdf_path = model_path.parents[1] / "robots" / "panda_arm.urdf"
+        scene_xml = build_scene_xml(model_path, robot_urdf_path)
+        self.model = mujoco.MjModel.from_xml_string(scene_xml.decode("utf-8"))
         # Panda links are gravity compensated, as on the real robot.  The rod
         # remains fully dynamic under gravity.
         for body_id in range(self.model.nbody):

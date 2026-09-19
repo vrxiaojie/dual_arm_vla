@@ -12,7 +12,7 @@ def run(headless=False, realtime=False):
     # speed.  Keep headless runs fast, while making the normal interactive
     # command behave like a simulation rather than a batch calculation.
     config = TaskConfig(realtime=realtime or not headless)
-    scene = TaskScene(config.model_path)
+    scene = TaskScene(config.model_path, config.robot_urdf_path)
     if headless:
         return Task1Runner(scene, config).run()
 

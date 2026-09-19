@@ -10,6 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 @dataclass
 class TaskConfig:
     model_path: Path = ROOT / "models" / "task1_scene.xml"
+    robot_urdf_path: Path = ROOT / "robots" / "panda_arm.urdf"
     output_dir: Path = ROOT / "outputs" / "logs"
     target_rod_position: np.ndarray = field(
         default_factory=lambda: np.array([0.0, -0.42, 0.468])
