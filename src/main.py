@@ -1,16 +1,18 @@
 import argparse
+from contextlib import nullcontext
+from dataclasses import replace
 import json
 import queue
 import time
 import numpy as np
 from src.command_server import CommandServer
-from src.config import TaskConfig
+from src.config import TaskConfig, BoxCommand
 from src.scene import TaskScene
-from src.task import Task1Runner
+from src.task import TaskRunner
 
 
 def serve(scene, config, server, viewer=None):
-    print(f'Waiting for commands on 127.0.0.1:{server.server_address[1]} (1=green, 2=blue)', flush=True)
+    print(f'Waiting for commands on 127.0.0.1:{server.server_address[1]} (task1/task2=switch, 1=green, 2=blue, start=box, reset)', flush=True)
     while viewer is None or viewer.is_running():
         try:
             job = server.pending.get_nowait()
@@ -22,6 +24,29 @@ def serve(scene, config, server, viewer=None):
             continue
         command = job[0]
         try:
+            if isinstance(command, str) and command in ("task1", "task2", "reset"):
+                with viewer.lock() if viewer is not None else nullcontext():
+                    scene.switch_task(scene.task if command == "reset" else command)
+                if viewer is not None:
+                    viewer.sync()
+                server.complete(job, {'status': 'scene_ready', 'task': scene.task})
+                continue
+            if scene.task == "task2":
+                if command != "start":
+                    server.complete(job, {'status': 'invalid', 'message': 'Task2 accepts start or reset'})
+                    continue
+                command = BoxCommand()
+                task_config = replace(config, grasp_offset=.42, carry_height=.25, position_tolerance=.025)
+                if np.linalg.norm(scene.body_position('rod') - command.target_position) < .025:
+                    server.complete(job, {'status': 'already_at_target', 'task': scene.task})
+                    continue
+                report = TaskRunner(scene, task_config, viewer, command).run()
+                server.complete(job, {'status': 'completed', 'report': report}, report['result'] != 'SUCCESS')
+                print(json.dumps(report, indent=2), flush=True)
+                continue
+            if isinstance(command, str):
+                server.complete(job, {'status': 'invalid', 'message': 'Task1 accepts 1 or 2'})
+                continue
             rod = scene.body_position('rod')
             if np.linalg.norm(rod - command.target_position) < config.position_tolerance:
                 server.complete(job, {'status': 'already_at_target', 'command': command.direction})
@@ -31,12 +56,12 @@ def serve(scene, config, server, viewer=None):
             if np.linalg.norm(rod - source) >= config.position_tolerance:
                 server.complete(job, {'status': 'invalid_source', 'message': 'Rod is outside the source region'})
                 continue
-            report = Task1Runner(scene, config, viewer, command).run()
+            report = TaskRunner(scene, config, viewer, command).run()
             server.complete(job, {'status': 'completed', 'report': report}, report['result'] != 'SUCCESS')
             print(json.dumps(report, indent=2), flush=True)
-        except BaseException as exc:
+        except Exception as exc:
             server.complete(job, {'status': 'failed', 'message': str(exc)}, failed=True)
-            raise
+            print(f"Task failed: {exc}", flush=True)
 
 
 def run(headless=False, realtime=False, port=8765):
@@ -52,7 +77,7 @@ def run(headless=False, realtime=False, port=8765):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Command-driven dual Panda rod transport')
+    parser = argparse.ArgumentParser(description='Command-driven dual Panda rod and box transport')
     parser.add_argument('--headless', action='store_true', help='wait for commands without a viewer')
     parser.add_argument('--realtime', action='store_true', help='pace simulation steps to real time')
     parser.add_argument('--port', type=int, default=8765)

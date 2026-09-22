@@ -19,20 +19,20 @@ def send_command(command, port=8765):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='1: blue to green; 2: green to blue')
-    parser.add_argument('command', nargs='?', type=int, choices=(1, 2))
+    parser = argparse.ArgumentParser(description='Switch task1/task2; task1: 1/2; task2: start; reset current scene')
+    parser.add_argument('command', nargs='?', choices=('1', '2', 'task1', 'task2', 'start', 'reset'))
     parser.add_argument('--port', type=int, default=8765)
     args = parser.parse_args()
     while True:
         try:
-            value = str(args.command) if args.command else input('1=green, 2=blue, q=quit > ').strip()
+            value = str(args.command) if args.command else input('task1/task2=switch | 1=green 2=blue | start=carry box | reset | q=quit > ').strip()
             if value.lower() in ('q', 'quit', 'exit'):
                 return 0
-            if value not in ('1', '2'):
-                print('Please enter 1 or 2 (q to quit).')
+            if value not in ('1', '2', 'task1', 'task2', 'start', 'reset'):
+                print('Enter task1, task2, 1, 2, start, reset or q.')
                 continue
-            response = send_command(int(value), args.port)
-            ok = response['status'] == 'already_at_target' or (
+            response = send_command(int(value) if value in ('1', '2') else value, args.port)
+            ok = response['status'] in ('already_at_target', 'scene_ready') or (
                 response['status'] == 'completed' and response['report']['result'] == 'SUCCESS')
             if args.command:
                 return 0 if ok else 1
