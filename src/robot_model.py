@@ -101,12 +101,15 @@ def _add_finger_hand(parent: ET.Element, prefix: str, assets: ET.Element, urdf_p
     # Keep the control/grasp frame between the fingertips, 100 mm past the
     # Panda flange. Mesh offsets follow hand.xacro's 58.4 mm finger mount.
     hand = ET.SubElement(parent, "body", name=f"{prefix}_hand", pos="0 0 .207")
-    ET.SubElement(hand, "geom", name=f"{prefix}_hand_geom", type="sphere", size=".035", group="3", mass=".3")
+    # Palm contact belongs above the finger gap, not at the tool centre:
+    # a sphere at the TCP would prop the gripper up on top of the rod.
+    ET.SubElement(hand, "geom", name=f"{prefix}_hand_geom", type="box",
+                  pos="0 0 -.065", size=".03 .075 .03", group="3", mass=".3")
     ET.SubElement(hand, "geom", name=f"{prefix}_hand_visual", type="mesh",
                   mesh=f"{prefix}_hand_mesh", pos="0 0 -.100", group="2",
                   contype="0", conaffinity="0", density="0", rgba=".72 .72 .76 1")
     ET.SubElement(hand, "site", name=f"{prefix}_ee", size=".012", group="3", rgba="1 0 0 1" if prefix == "left" else "0 0 1 1")
-    for index, (axis, y) in enumerate((("0 1 0", ".025"), ("0 -1 0", "-.025")), 1):
+    for index, (axis, y) in enumerate((("0 1 0", ".0075"), ("0 -1 0", "-.0075")), 1):
         finger = ET.SubElement(hand, "body", name=f"{prefix}_finger{index}")
         ET.SubElement(
             finger,
@@ -115,15 +118,16 @@ def _add_finger_hand(parent: ET.Element, prefix: str, assets: ET.Element, urdf_p
             type="slide",
             axis=axis,
             range="0 .045",
-            damping="1",
+            damping="5",
         )
         ET.SubElement(
             finger,
             "geom",
             name=f"{prefix}_finger{index}_geom",
-            type="sphere",
-            pos=f"0 {y} 0",
-            size=".015",
+            type="box",
+            pos=f"0 {y} .0034",
+            size=".0087 .0075 .0087",
+            margin=".0005",
             group="3",
             mass=".08",
         )

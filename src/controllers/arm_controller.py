@@ -75,7 +75,10 @@ class ArmController:
         self.data.ctrl[self.actuator_ids] = command
 
     def set_gripper(self, opened: bool):
-        self.data.ctrl[self.grip_ids] = 0.04 if opened else 0.0
+        # Inner pad faces are at +/- joint displacement. Close around the
+        # rod diameter with a small preload, never to an empty zero-width gap.
+        radius = float(self.model.geom("rod_geom").size[0])
+        self.data.ctrl[self.grip_ids] = 0.04 if opened else max(0.0, radius - 0.002)
 
     def hold(self):
         self.data.ctrl[self.actuator_ids] = self.data.qpos[self.qpos_ids]

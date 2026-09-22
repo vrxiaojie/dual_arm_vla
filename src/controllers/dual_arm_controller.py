@@ -32,9 +32,16 @@ class DualArmController:
     def attach_rod(self):
         """Enable two endpoint constraints after bilateral grasp validation."""
         # Connect layout stores the body1-local (hand) anchor followed by the
-        # body2-local (rod) anchor.  Pin each hand origin to its rod endpoint.
+        # body2-local (rod) anchor. Preserve the verified grasp pose instead
+        # of snapping the rod to the hand origin when constraints activate.
+        rod_id = self.model.body("rod").id
+        rod_rotation = self.data.xmat[rod_id].reshape(3, 3)
         for weld_id, endpoint in zip(self.weld_ids, (-0.42, 0.42)):
-            self.model.eq_data[weld_id, :3] = 0.0
+            hand_id = self.model.eq_obj1id[weld_id]
+            point = self.data.xpos[rod_id] + rod_rotation @ np.array([endpoint, 0.0, 0.0])
+            self.model.eq_data[weld_id, :3] = (
+                self.data.xmat[hand_id].reshape(3, 3).T @ (point - self.data.xpos[hand_id])
+            )
             self.model.eq_data[weld_id, 3:6] = (endpoint, 0.0, 0.0)
         self.data.eq_active[self.weld_ids] = 1
         mujoco.mj_forward(self.model, self.data)

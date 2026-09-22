@@ -145,7 +145,7 @@ class Task1Runner:
 
         # The tool frame sits between the fingertips. Hidden contact proxies
         # provide the grasp forces while the Panda meshes provide the visuals.
-        grasp_z = 0.49
+        grasp_z = rod[2]
         left_grasp_target = np.array([rod[0] - self.config.grasp_offset, rod[1], grasp_z])
         right_grasp_target = np.array([rod[0] + self.config.grasp_offset, rod[1], grasp_z])
         place_shift = self.command.target_position - np.array([rod[0], rod[1], 0.468])
@@ -164,7 +164,7 @@ class Task1Runner:
             self.machine.advance()  # GRASP
             with self._viewer_lock():
                 self.controller.set_grippers(False)
-            for _ in range(120):
+            for _ in range(250):
                 if not self._step():
                     break
         if self.machine.state is not TaskState.FAILURE_STOP:
