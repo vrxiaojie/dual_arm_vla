@@ -46,7 +46,12 @@ class CollisionChecker:
                 if (
                     other.startswith(("left_arm_base_", "right_arm_base_"))
                     or other == "rod_geom"
-                    or ((terminal_link or gripper) and state in {"PLACE", "RELEASE", "RETREAT"})
+                    # Pickup from a placed pose uses the same terminal-link
+                    # support contacts as placement; proximal links stay guarded.
+                    or ((terminal_link or gripper) and state in {
+                        "APPROACH", "GRASP", "CHECK_GRASP", "LIFT",
+                        "PLACE", "RELEASE", "RETREAT",
+                    })
                 ):
                     continue
                 if self._side(other):

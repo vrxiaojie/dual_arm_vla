@@ -7,6 +7,7 @@ from .arm_controller import ArmController
 class DualArmController:
     def __init__(self, model, data):
         self.model, self.data = model, data
+        self._collision_masks = (model.geom_contype.copy(), model.geom_conaffinity.copy())
         self.left = ArmController(model, data, "left", 0)
         self.right = ArmController(model, data, "right", 7)
         self.weld_ids = [mujoco.mj_name2id(
@@ -48,3 +49,7 @@ class DualArmController:
             if name.startswith(("left_", "right_")):
                 self.model.geom_contype[geom_id] = 0
                 self.model.geom_conaffinity[geom_id] = 0
+
+    def restore_arm_collisions(self):
+        self.model.geom_contype[:] = self._collision_masks[0]
+        self.model.geom_conaffinity[:] = self._collision_masks[1]

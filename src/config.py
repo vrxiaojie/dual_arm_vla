@@ -27,6 +27,7 @@ class TaskConfig:
 
 @dataclass(frozen=True)
 class TaskCommand:
+    direction: int = 1
     object: str = "rod"
     left_role: str = "grasp_left_end"
     right_role: str = "grasp_right_end"
@@ -34,6 +35,14 @@ class TaskCommand:
     sequence: tuple[str, ...] = (
         "approach", "grasp", "lift", "transport", "place", "release"
     )
+
+    def __post_init__(self):
+        if type(self.direction) is not int or self.direction not in (1, 2):
+            raise ValueError("command must be 1 (green) or 2 (blue)")
+
+    @property
+    def target_position(self):
+        return np.array([0.0, -0.42 if self.direction == 1 else 0.0, 0.468])
 
 
 ROLES = {

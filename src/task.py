@@ -15,14 +15,14 @@ from src.state_machine import StateMachine, TaskState
 
 
 class Task1Runner:
-    def __init__(self, scene, config, viewer=None):
+    def __init__(self, scene, config, viewer=None, command=None):
         self.scene, self.config, self.viewer = scene, config, viewer
         self.controller = DualArmController(scene.model, scene.data)
         self.collision = CollisionChecker(scene.model, scene.data)
         self.grasp = GraspMonitor(self.controller, scene)
         self.metrics = Metrics()
         self.machine = StateMachine()
-        self.command = TaskCommand()
+        self.command = command or TaskCommand()
         self.failure_reason = ""
         self.left_grasp = self.right_grasp = False
         self.collision_detected = False
@@ -116,8 +116,11 @@ class Task1Runner:
         # The hand centre sits slightly above the rod; the spherical palm and
         # opposing fingers then contact it without scraping the tabletop.
         grasp_z = 0.49
-        left_grasp_target = np.array([-self.config.grasp_offset, 0.0, grasp_z])
-        right_grasp_target = np.array([self.config.grasp_offset, 0.0, grasp_z])
+        left_grasp_target = np.array([rod[0] - self.config.grasp_offset, rod[1], grasp_z])
+        right_grasp_target = np.array([rod[0] + self.config.grasp_offset, rod[1], grasp_z])
+        place_shift = self.command.target_position - np.array([rod[0], rod[1], 0.468])
+        place_shift[0] -= 0.05
+        place_shift[1] += 0.03
         # Descend vertically so contact cannot shove the free rod toward the
         # destination before the grasp has been verified.
         pre_left = left_grasp_target + np.array([0.0, 0.0, self.config.pregrasp_height])
@@ -154,14 +157,11 @@ class Task1Runner:
             self._move_segment(left_grasp_target + lift, right_grasp_target + lift, 300)
         if self.machine.state is not TaskState.FAILURE_STOP:
             self.machine.advance()  # TRANSPORT
-            # The mirrored right base has a small, repeatable tracking bias in
-            # this mesh model. Compensate it so the rod settles in the centre
-            # of the target region rather than at its right edge.
-            transport = np.array([-0.10, -0.42, self.config.carry_height])
+            # place_shift includes the mesh model's calibrated tracking bias.
+            transport = place_shift + np.array([0.0, 0.0, self.config.carry_height])
             self._move_segment(left_grasp_target + transport, right_grasp_target + transport, 420)
         if self.machine.state is not TaskState.FAILURE_STOP:
             self.machine.advance()  # PLACE
-            place_shift = np.array([-0.10, -0.42, 0.0])
             self._move_segment(left_grasp_target + place_shift, right_grasp_target + place_shift, 320)
             for _ in range(80):
                 if not self._step():
@@ -190,10 +190,12 @@ class Task1Runner:
         if self.machine.state is not TaskState.FAILURE_STOP:
             self.machine.advance()
 
+        with self._viewer_lock():
+            self.controller.restore_arm_collisions()
         return self._finish()
 
     def _finish(self):
-        report = self.metrics.summary(self.scene, self.config.target_rod_position)
+        report = self.metrics.summary(self.scene, self.command.target_position)
         numerical_success = (
             report["final_rod_position_error_m"] < self.config.position_tolerance
             and report["final_rod_orientation_error_deg"] < self.config.orientation_tolerance_deg
@@ -202,6 +204,8 @@ class Task1Runner:
             self._fail("final rod pose outside tolerance")
         report.update({
             "task": "task1_rod_transport",
+            "command": self.command.direction,
+            "target_region": "green" if self.command.direction == 1 else "blue",
             "result": "SUCCESS" if self.machine.state is TaskState.SUCCESS else "FAILURE",
             "failure_reason": self.failure_reason,
             "collision_detected": self.collision_detected,
@@ -216,3 +220,9 @@ class Task1Runner:
         path.write_text(json.dumps(report, indent=2), encoding="utf-8")
         report["log_path"] = str(path)
         return report
+
+
+
+
+
+

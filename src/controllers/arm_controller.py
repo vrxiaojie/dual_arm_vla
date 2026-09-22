@@ -34,6 +34,9 @@ class ArmController:
         """Solve a Cartesian waypoint off-line without changing simulation state."""
         scratch = mujoco.MjData(self.model)
         scratch.qpos[:] = self.data.qpos
+        # Use a repeatable IK branch, including when picking up after retreat.
+        # Seeding from the last retreat can fold the wrist into the tabletop.
+        scratch.qpos[self.qpos_ids] = [0.0, -0.55, 0.0, -1.75, 0.0, 1.20, 0.0]
         mujoco.mj_forward(self.model, scratch)
         ranges = self.model.jnt_range[self.joint_ids]
         for _ in range(max_iterations):
