@@ -42,13 +42,14 @@ class DualArmController:
     def detach_rod(self):
         self.data.eq_active[self.weld_ids] = 0
 
-    def disable_arm_collisions(self):
-        """Prevent the open grippers from pushing the placed rod during retreat."""
+    def disable_rod_contacts(self):
+        """Isolate the released rod while preserving arm/table and arm/arm contact."""
         for geom_id in range(self.model.ngeom):
             name = mujoco.mj_id2name(self.model, mujoco.mjtObj.mjOBJ_GEOM, geom_id) or ""
             if name.startswith(("left_", "right_")):
-                self.model.geom_contype[geom_id] = 0
-                self.model.geom_conaffinity[geom_id] = 0
+                self.model.geom_conaffinity[geom_id] &= ~4
+            elif name == "rod_geom":
+                self.model.geom_conaffinity[geom_id] &= ~3
 
     def restore_arm_collisions(self):
         self.model.geom_contype[:] = self._collision_masks[0]

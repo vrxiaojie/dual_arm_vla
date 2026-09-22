@@ -92,12 +92,20 @@ def _link_geometries(
     return geoms
 
 
-def _add_finger_hand(parent: ET.Element, prefix: str, assets: ET.Element) -> None:
+def _add_finger_hand(parent: ET.Element, prefix: str, assets: ET.Element, urdf_path: Path) -> None:
     """Add the task gripper at Panda link 8 (the arm URDF is arm-only)."""
 
-    hand = ET.SubElement(parent, "body", name=f"{prefix}_hand", pos="0 0 .107")
-    ET.SubElement(hand, "geom", name=f"{prefix}_hand_geom", type="sphere", size=".035", rgba=".12 .12 .15 1", mass=".3")
-    ET.SubElement(hand, "site", name=f"{prefix}_ee", size=".012", rgba="1 0 0 1" if prefix == "left" else "0 0 1 1")
+    for part in ("hand", "finger"):
+        ET.SubElement(assets, "mesh", name=f"{prefix}_{part}_mesh",
+                      file=str(_mesh_path(urdf_path, f"meshes/collision/{part}.stl")))
+    # Keep the control/grasp frame between the fingertips, 100 mm past the
+    # Panda flange. Mesh offsets follow hand.xacro's 58.4 mm finger mount.
+    hand = ET.SubElement(parent, "body", name=f"{prefix}_hand", pos="0 0 .207")
+    ET.SubElement(hand, "geom", name=f"{prefix}_hand_geom", type="sphere", size=".035", group="3", mass=".3")
+    ET.SubElement(hand, "geom", name=f"{prefix}_hand_visual", type="mesh",
+                  mesh=f"{prefix}_hand_mesh", pos="0 0 -.100", group="2",
+                  contype="0", conaffinity="0", density="0", rgba=".72 .72 .76 1")
+    ET.SubElement(hand, "site", name=f"{prefix}_ee", size=".012", group="3", rgba="1 0 0 1" if prefix == "left" else "0 0 1 1")
     for index, (axis, y) in enumerate((("0 1 0", ".025"), ("0 -1 0", "-.025")), 1):
         finger = ET.SubElement(hand, "body", name=f"{prefix}_finger{index}")
         ET.SubElement(
@@ -116,9 +124,13 @@ def _add_finger_hand(parent: ET.Element, prefix: str, assets: ET.Element) -> Non
             type="sphere",
             pos=f"0 {y} 0",
             size=".015",
-            rgba=".15 .15 .18 1",
+            group="3",
             mass=".08",
         )
+        ET.SubElement(finger, "geom", name=f"{prefix}_finger{index}_visual",
+                      type="mesh", mesh=f"{prefix}_finger_mesh", pos="0 0 -.0416",
+                      quat="1 0 0 0" if index == 1 else "0 0 0 1", group="2",
+                      contype="0", conaffinity="0", density="0", rgba=".18 .18 .20 1")
 
 
 def _add_robot(
@@ -206,7 +218,7 @@ def _add_robot(
             body.append(geom)
         current = body
 
-    _add_finger_hand(current, prefix, assets)
+    _add_finger_hand(current, prefix, assets, urdf_path)
 
 
 def build_scene_xml(scene_path: Path, urdf_path: Path) -> bytes:
@@ -232,4 +244,9 @@ def build_scene_xml(scene_path: Path, urdf_path: Path) -> bytes:
     _add_robot(
         worldbody, assets, urdf_root, urdf_path, "right", (.62, .30, .43), "0 0 0 1"
     )
+    # MuJoCo counts gravity-compensated bodies at model compilation. Setting
+    # body_gravcomp only afterwards leaves ngravcomp=0 and produces no force.
+    for body in worldbody.iter("body"):
+        if body.get("name", "").startswith(("left_", "right_")):
+            body.set("gravcomp", "1")
     return ET.tostring(scene_root, encoding="utf-8", xml_declaration=True)

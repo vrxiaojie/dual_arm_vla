@@ -50,7 +50,7 @@ class CollisionChecker:
                     # support contacts as placement; proximal links stay guarded.
                     or ((terminal_link or gripper) and state in {
                         "APPROACH", "GRASP", "CHECK_GRASP", "LIFT",
-                        "PLACE", "RELEASE", "RETREAT",
+                        "PLACE",
                     })
                 ):
                     continue

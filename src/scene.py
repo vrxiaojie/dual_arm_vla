@@ -13,17 +13,13 @@ class TaskScene:
             robot_urdf_path = model_path.parents[1] / "robots" / "panda_arm.urdf"
         scene_xml = build_scene_xml(model_path, robot_urdf_path)
         self.model = mujoco.MjModel.from_xml_string(scene_xml.decode("utf-8"))
-        # Panda links are gravity compensated, as on the real robot.  The rod
-        # remains fully dynamic under gravity.
-        for body_id in range(self.model.nbody):
-            name = mujoco.mj_id2name(self.model, mujoco.mjtObj.mjOBJ_BODY, body_id) or ""
-            if name.startswith("left_") or name.startswith("right_"):
-                self.model.body_gravcomp[body_id] = 1.0
         # Collision groups keep each serial chain's adjacent links from
         # physically fighting one another, while preserving inter-arm,
         # arm/rod and arm/table contacts for the safety monitor.
         for geom_id in range(self.model.ngeom):
             name = mujoco.mj_id2name(self.model, mujoco.mjtObj.mjOBJ_GEOM, geom_id) or ""
+            if name.endswith("_visual"):
+                continue
             if name.startswith("left_"):
                 self.model.geom_contype[geom_id], self.model.geom_conaffinity[geom_id] = 1, 14
             elif name.startswith("right_"):

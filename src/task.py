@@ -97,6 +97,36 @@ class Task1Runner:
         if self.machine.state is not TaskState.FAILURE_STOP:
             self.machine.fail()
 
+    def _retreat_segment(self, left_end, right_end, steps=300):
+        """Follow a Cartesian path on the current IK branch after release."""
+        arms = (self.controller.left, self.controller.right)
+        starts = [arm.position for arm in arms]
+        seeds = [self.scene.data.qpos[arm.qpos_ids].copy() for arm in arms]
+        ends = (left_end, right_end)
+        # Short Cartesian waypoints avoid the large joint-space arc produced
+        # by switching back to the folded IK seed at table height.
+        for index in range(0, steps, 10):
+            batch_steps = min(10, steps - index)
+            fraction = (index + batch_steps) / steps
+            references = [smoothstep(start, end, fraction) for start, end in zip(starts, ends)]
+            try:
+                targets = [arm.solve_position(ref, seed=seed)
+                           for arm, ref, seed in zip(arms, references, seeds)]
+            except RuntimeError as exc:
+                self._fail(str(exc))
+                return False
+            for j in range(batch_steps):
+                with self._viewer_lock():
+                    for arm, seed, target in zip(arms, seeds, targets):
+                        arm.command_joints(smoothstep(seed, target, (j + 1) / batch_steps))
+                if not self._step():
+                    return False
+            seeds = targets
+        for _ in range(100):
+            if not self._step():
+                return False
+        return True
+
     def replan(self, failure_reason):
         """Extension point for a future VLA/regrasp planner."""
         raise NotImplementedError(f"Replanning not implemented: {failure_reason}")
@@ -113,14 +143,12 @@ class Task1Runner:
         ) < 0.15:
             self._fail("an arm initially contacts the rod")
 
-        # The hand centre sits slightly above the rod; the spherical palm and
-        # opposing fingers then contact it without scraping the tabletop.
+        # The tool frame sits between the fingertips. Hidden contact proxies
+        # provide the grasp forces while the Panda meshes provide the visuals.
         grasp_z = 0.49
         left_grasp_target = np.array([rod[0] - self.config.grasp_offset, rod[1], grasp_z])
         right_grasp_target = np.array([rod[0] + self.config.grasp_offset, rod[1], grasp_z])
         place_shift = self.command.target_position - np.array([rod[0], rod[1], 0.468])
-        place_shift[0] -= 0.05
-        place_shift[1] += 0.03
         # Descend vertically so contact cannot shove the free rod toward the
         # destination before the grasp has been verified.
         pre_left = left_grasp_target + np.array([0.0, 0.0, self.config.pregrasp_height])
@@ -157,7 +185,6 @@ class Task1Runner:
             self._move_segment(left_grasp_target + lift, right_grasp_target + lift, 300)
         if self.machine.state is not TaskState.FAILURE_STOP:
             self.machine.advance()  # TRANSPORT
-            # place_shift includes the mesh model's calibrated tracking bias.
             transport = place_shift + np.array([0.0, 0.0, self.config.carry_height])
             self._move_segment(left_grasp_target + transport, right_grasp_target + transport, 420)
         if self.machine.state is not TaskState.FAILURE_STOP:
@@ -169,7 +196,9 @@ class Task1Runner:
         if self.machine.state is not TaskState.FAILURE_STOP:
             self.machine.advance()  # RELEASE
             with self._viewer_lock():
-                self.controller.disable_arm_collisions()
+                self.controller.left.hold()
+                self.controller.right.hold()
+                self.controller.disable_rod_contacts()
                 self.controller.detach_rod()
                 self.controller.set_grippers(True)
             for _ in range(180):
@@ -177,16 +206,21 @@ class Task1Runner:
                     break
         if self.machine.state is not TaskState.FAILURE_STOP:
             self.machine.advance()  # RETREAT
+            left_start = self.controller.left.position
+            right_start = self.controller.right.position
+            up = np.array([0.0, 0.0, 0.22])
+            self._retreat_segment(left_start + up, right_start + up)
             # Retreat outward from the rod.  With the mirrored base
             # orientations, moving both wrists in the same world-X direction
             # would make one gripper sweep back across the placed rod.
-            left_retreat = np.array([-0.20, 0.16, 0.20])
-            right_retreat = np.array([0.20, 0.16, 0.20])
-            self._move_segment(
-                left_grasp_target + place_shift + left_retreat,
-                right_grasp_target + place_shift + right_retreat,
-                260,
-            )
+            left_retreat = up + np.array([-0.08, 0.08, 0.0])
+            right_retreat = up + np.array([0.08, 0.08, 0.0])
+            if self.machine.state is not TaskState.FAILURE_STOP:
+                self._retreat_segment(
+                    left_start + left_retreat,
+                    right_start + right_retreat,
+                    260,
+                )
         if self.machine.state is not TaskState.FAILURE_STOP:
             self.machine.advance()
 
