@@ -47,3 +47,22 @@ uses actuator position targets and damped least-squares IK; it never teleports
 an arm or the rod.  Two MuJoCo endpoint constraints are enabled only after
 both grasp contacts have been verified.  They represent the closed-gripper
 grasp and are released during `RELEASE`.
+
+The grippers use the checked-in Panda `hand.stl` / `finger.stl` meshes, with
+opposing fingers driven by the existing slide joints. Simplified contact
+proxies and tool markers are hidden in viewer group 3; the visible meshes
+remain in group 2. The tool frame is between the fingertips and the planner
+keeps both grippers facing downward.
+
+Gravity compensation is enabled in the MJCF before model compilation, so
+the unloaded arms hold their pose when the rod is released. Release holds
+the current joint positions; retreat first raises both hands by 22 cm, then
+moves them outward and back on continuous Cartesian waypoints. Only arm/rod
+contacts are temporarily filtered during release: table and inter-arm
+collisions remain enabled throughout.
+
+To reproduce the visual checks, run `python scripts/inspect_transport.py`.
+It renders both grippers at release/retreat checkpoints in both directions
+and writes PNGs plus `measurements.json` to
+`outputs/screenshots/gripper_retreat/`. The regression suite also checks
+both destinations for wrist sag and mesh vertices crossing the tabletop.
