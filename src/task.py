@@ -46,8 +46,8 @@ class Task1Runner:
 
         if self.viewer is not None:
             self.viewer.sync()
-            if self.config.realtime:
-                time.sleep(self.scene.model.opt.timestep)
+        if self.config.realtime:
+            time.sleep(self.scene.model.opt.timestep)
         return True
 
     def _move_segment(self, left_end, right_end, steps=300):
