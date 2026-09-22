@@ -1,11 +1,11 @@
-# Dual Panda Task 1
+# Dual Panda Tasks
 
 MuJoCo demo of two Franka Panda arms cooperatively transporting a rod with an
 explicit, safety-interlocked state machine.
 
 ```powershell
 # Terminal 1: start the viewer and wait for commands
-.\.venv\Scripts\python.exe scripts/run_task1.py
+.\.venv\Scripts\python.exe scripts/run_task.py
 
 # Terminal 2: enter 1 or 2 repeatedly; q exits the client
 .\.venv\Scripts\python.exe scripts/send_command.py
@@ -28,7 +28,7 @@ the main program or cancel an accepted task.
 
 Both programs accept `--port` (default `8765`). The server listens only on
 `127.0.0.1`. Commands received while busy are rejected rather than queued.
-After a motion failure, the server rejects further commands until restarted.
+After a motion failure, reset or switch the scene to clear the failure latch.
 A rod outside the expected source region is rejected without motion.
 
 For future VLA integration, connect via TCP and send one newline-terminated
@@ -78,3 +78,36 @@ and writes PNGs plus `measurements.json` to
 both destinations for wrist sag and mesh vertices crossing the tabletop.
 It also measures the visible finger gap and rod height during carrying, and
 verifies that missing either pad contact prevents grasp validation.
+
+
+## Task2: box transport
+
+Start `scripts/run_task.py`, then use the command client:
+
+```powershell
+python scripts/send_command.py task2
+python scripts/send_command.py start
+python scripts/send_command.py reset
+python scripts/send_command.py task1
+```
+
+Run the client without arguments for its interactive menu. `task1` and `task2`
+select and initialize a scene; `reset` restores the current scene; `start`
+transports the box in task2. Task1 retains commands `1` and `2`.
+Switching keeps the same MuJoCo window, model, data and camera. Commands
+received during motion return `busy`. Reset or switch after a failure to recover.
+
+Task2 retains both task1 base positions and orientations, with separate
+pedestals replacing the table. A 0.60 m cube with handles on its left and right
+sides is carried from the floor into the green square. Both finger pads on
+both hands must contact the handles before grasp constraints activate.
+An additional orientation constraint models a firm handle grasp and prevents
+rotation about the line joining the two grasp points. All constraints are
+released before retreat. The box uses uniform 1 kg cube inertia. Motion uses
+MuJoCo dynamics without directly setting object positions during transport.
+
+TCP also accepts `{"command":"task2"}`, `{"command":"task1"}`,
+`{"command":"start"}` and `{"command":"reset"}`. Switching and resetting
+return `accepted`, then `scene_ready` with the active task name.
+Task2 logs include bilateral grasp verification, box position/orientation
+errors and `inside_target_square`, which checks the full box footprint.
