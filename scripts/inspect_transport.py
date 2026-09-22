@@ -59,7 +59,11 @@ def main():
                         z = float((vertices @ data.geom_xmat[gid].reshape(3, 3)[2]).min() + data.geom_xpos[gid, 2])
                         if state not in lowest or z < lowest[state]['z']:
                             lowest[state] = {'z': z, 'geom': name, 'tick': tick}
-                if (state == 'RELEASE' and tick in (1, 90, 180)) or (state == 'RETREAT' and tick in (100, 400, 760)):
+                if ((state == 'GRASP' and tick == 250)
+                        or (state == 'LIFT' and tick in (100, 400))
+                        or (state == 'TRANSPORT' and tick in (260, 520))
+                        or (state == 'RELEASE' and tick in (1, 90, 180))
+                        or (state == 'RETREAT' and tick in (100, 400, 760))):
                     for arm in (runner.controller.left, runner.controller.right):
                         camera = mujoco.MjvCamera()
                         camera.lookat[:] = arm.position

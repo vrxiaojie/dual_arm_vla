@@ -54,6 +54,15 @@ proxies and tool markers are hidden in viewer group 3; the visible meshes
 remain in group 2. The tool frame is between the fingertips and the planner
 keeps both grippers facing downward.
 
+Grasp height follows the settled rod centre. The hidden palm collision box
+sits above the gap, and the fingertip contact boxes align with the visible
+inner pad faces. Closing targets half the rod diameter minus a 2 mm preload
+per finger, so contact holds an approximately 57 mm gap around the 56 mm rod
+instead of closing the fingers together. A 0.5 mm contact margin stabilizes
+pad contact detection. Both pads on each gripper must contact the rod before
+the grasp constraints can activate; their anchors preserve that verified
+pose without pulling the rod up to a different point.
+
 Gravity compensation is enabled in the MJCF before model compilation, so
 the unloaded arms hold their pose when the rod is released. Release holds
 the current joint positions; retreat first raises both hands by 22 cm, then
@@ -62,7 +71,10 @@ contacts are temporarily filtered during release: table and inter-arm
 collisions remain enabled throughout.
 
 To reproduce the visual checks, run `python scripts/inspect_transport.py`.
-It renders both grippers at release/retreat checkpoints in both directions
+It renders both grippers at grasp, lift, transport, release and retreat
+checkpoints in both directions
 and writes PNGs plus `measurements.json` to
 `outputs/screenshots/gripper_retreat/`. The regression suite also checks
 both destinations for wrist sag and mesh vertices crossing the tabletop.
+It also measures the visible finger gap and rod height during carrying, and
+verifies that missing either pad contact prevents grasp validation.
