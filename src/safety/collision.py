@@ -24,6 +24,20 @@ class CollisionChecker:
             if sa and sb and sa != sb:
                 self.last_reason = f"inter-arm collision: {a} / {b}"
                 return True
+            box_geoms = [name for name in (a, b) if name.startswith(("box_shell", "box_handle_", "box_mount_", "box_join_"))]
+            if box_geoms:
+                other = b if a in box_geoms else a
+                if self._side(other):
+                    permitted = box_geoms[0].startswith("box_handle_") and (
+                        "finger" in other or "hand_geom" in other)
+                    if not permitted:
+                        self.last_reason = f"unexpected box contact: {box_geoms[0]} / {other}"
+                        return True
+            if "floor" in names:
+                other = b if a == "floor" else a
+                if self._side(other):
+                    self.last_reason = f"arm-floor collision: {other}"
+                    return True
             if "rod_geom" in names:
                 other = b if a == "rod_geom" else a
                 if other == "table_top" and state in {"INIT", "PRE_GRASP", "APPROACH", "GRASP", "LIFT", "PLACE", "RELEASE", "RETREAT", "SUCCESS"}:

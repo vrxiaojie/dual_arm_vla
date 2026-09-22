@@ -49,3 +49,12 @@ ROLES = {
     "left_arm": "rod_left_grasper",
     "right_arm": "rod_right_grasper",
 }
+
+
+@dataclass(frozen=True)
+class BoxCommand:
+    direction: str = "start"
+
+    @property
+    def target_position(self):
+        return np.array([0.0, -.42, .30])

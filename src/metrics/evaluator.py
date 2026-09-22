@@ -14,6 +14,9 @@ class Metrics:
         rod_id = mujoco.mj_name2id(scene.model, mujoco.mjtObj.mjOBJ_BODY, "rod")
         rod_axis = scene.data.xmat[rod_id].reshape(3, 3)[:, 0]
         tilt = np.degrees(np.arccos(np.clip(abs(rod_axis[0]), 0.0, 1.0)))
+        if scene.task == "task2":
+            quat = scene.data.xquat[rod_id]
+            tilt = np.degrees(2 * np.arccos(np.clip(abs(quat[0]), 0, 1)))
         self.max_rod_tilt_deg = max(self.max_rod_tilt_deg, float(tilt))
 
     def summary(self, scene, target):
@@ -21,6 +24,8 @@ class Metrics:
         position = scene.data.xpos[rod_id]
         axis = scene.data.xmat[rod_id].reshape(3, 3)[:, 0]
         orientation = np.degrees(np.arccos(np.clip(abs(axis[0]), 0.0, 1.0)))
+        if scene.task == "task2":
+            orientation = np.degrees(2 * np.arccos(np.clip(abs(scene.data.xquat[rod_id, 0]), 0, 1)))
         values = np.asarray(self.sync_errors or [0.0])
         return {
             "max_synchronization_error_m": float(values.max()),

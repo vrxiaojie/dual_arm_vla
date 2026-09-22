@@ -238,6 +238,36 @@ def build_scene_xml(scene_path: Path, urdf_path: Path) -> bytes:
         if body.get("name") in {"left_arm_base", "right_arm_base"}:
             worldbody.remove(body)
 
+    # Both task layouts share one model so the passive viewer stays alive.
+    ET.SubElement(scene_root.find("equality"), "weld", name="box_orientation_grasp",
+                  body1="left_hand", body2="rod", active="false", solref=".02 1")
+    # The existing free body is reused by both layouts. New geoms have zero
+    # mass so task1 keeps its original inertia; TaskScene selects cube inertia.
+    rod = worldbody.find("body[@name='rod']")
+    ET.SubElement(rod, "geom", name="box_shell", type="box", size=".30 .30 .30",
+                  rgba=".85 .48 .12 1", mass="0", contype="4", conaffinity="11")
+    for side, sign in (("left", -1), ("right", 1)):
+        x = sign * .42
+        ET.SubElement(rod, "geom", name=f"box_handle_{side}", type="capsule",
+                      fromto=f"{x-.055} 0 .26 {x+.055} 0 .26", size=".028",
+                      rgba=".15 .18 .22 1", mass="0", contype="4", conaffinity="11")
+        for index, end in enumerate((x-.07, x+.07)):
+            ET.SubElement(rod, "geom", name=f"box_mount_{side}_{index}", type="capsule",
+                          fromto=f"{sign*.30} 0 .13 {end} 0 .13", size=".012",
+                          rgba=".15 .18 .22 1", mass="0", contype="4", conaffinity="11")
+            ET.SubElement(rod, "geom", name=f"box_join_{side}_{index}", type="capsule",
+                          fromto=f"{end} 0 .13 {end} 0 .26", size=".012",
+                          rgba=".15 .18 .22 1", mass="0", contype="4", conaffinity="11")
+    for i, (pos, size) in enumerate([
+        ((-.34,-.42,.002),(.006,.34,.002)), ((.34,-.42,.002),(.006,.34,.002)),
+        ((0,-.76,.002),(.34,.006,.002)), ((0,-.08,.002),(.34,.006,.002))]):
+        ET.SubElement(worldbody, "geom", name=f"box_target_{i}", type="box",
+                      pos=" ".join(map(str,pos)), size=" ".join(map(str,size)),
+                      rgba=".1 .95 .35 1", contype="0", conaffinity="0")
+    for side, x in (("left",-.62),("right",.62)):
+        ET.SubElement(worldbody, "geom", name=f"box_pedestal_{side}", type="box",
+                      pos=f"{x} .30 .20", size=".13 .13 .20", rgba=".3 .33 .38 1",
+                      contype="0", conaffinity="0")
     urdf_root = ET.parse(urdf_path).getroot()
     # The real Panda has a longer base-to-wrist reach than the former toy
     # chain.  Place the bases closer to the work area so both the source and

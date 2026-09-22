@@ -8,8 +8,10 @@ class GraspMonitor:
 
     def check(self):
         rod = self.scene.body_position("rod")
-        expected_left = rod + np.array([-0.42, 0.0, 0.0])
-        expected_right = rod + np.array([0.42, 0.0, 0.0])
+        box = getattr(self.scene, "task", "task1") == "task2"
+        offset, height = (.42, .26) if box else (.42, 0)
+        expected_left = rod + np.array([-offset, 0.0, height])
+        expected_right = rod + np.array([offset, 0.0, height])
         near_left = np.linalg.norm(self.controller.left.position - expected_left) < 0.02
         near_right = np.linalg.norm(self.controller.right.position - expected_right) < 0.02
         contacts = {"left": set(), "right": set()}
@@ -21,14 +23,15 @@ class GraspMonitor:
             b = mujoco.mj_id2name(
                 self.scene.model, mujoco.mjtObj.mjOBJ_GEOM, contact.geom2
             ) or ""
-            if "rod_geom" not in {a, b}:
+            objects = {"box_handle_left", "box_handle_right"} if box else {"rod_geom"}
+            if not objects.intersection({a, b}):
                 continue
-            other = b if a == "rod_geom" else a
+            other = b if a in objects else a
             for side in contacts:
                 for finger in (1, 2):
                     if other == f"{side}_finger{finger}_geom":
                         contacts[side].add(finger)
-        upright = abs(rod[2] - 0.468) < 0.10
+        upright = abs(rod[2] - (.30 if box else .468)) < 0.10
         return (
             bool(near_left and len(contacts["left"]) == 2 and upright),
             bool(near_right and len(contacts["right"]) == 2 and upright),

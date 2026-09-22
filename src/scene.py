@@ -33,6 +33,37 @@ class TaskScene:
         self.model.actuator_gainprm[:14, 0] = 650.0
         self.model.actuator_biasprm[:14, 1] = -650.0
         self.data = mujoco.MjData(self.model)
+        self._object_inertia = self.model.body("rod").inertia.copy()
+        self.task = "task1"
+        self._rgba = self.model.geom_rgba.copy()
+        self._masks = (self.model.geom_contype.copy(), self.model.geom_conaffinity.copy())
+        self.switch_task("task1")
+
+    def switch_task(self, task):
+        if task not in ("task1", "task2"):
+            raise ValueError("Unknown task")
+        self.task = task
+        self.model.body("rod").inertia[:] = [.06, .06, .06] if task == "task2" else self._object_inertia
+        self.model.geom_rgba[:] = self._rgba
+        self.model.geom_contype[:] = self._masks[0]
+        self.model.geom_conaffinity[:] = self._masks[1]
+        for i in range(self.model.ngeom):
+            name = self.model.geom(i).name
+            hidden = (name.startswith("box_") if task == "task1" else
+                      name in {"rod_geom", "table_top", "start_region", "target_region"})
+            if hidden:
+                self.model.geom_rgba[i, 3] = 0
+                self.model.geom_contype[i] = self.model.geom_conaffinity[i] = 0
+        floor = self.model.geom("floor").id
+        self.model.geom_contype[floor] = 8 if task == "task2" else 0
+        self.model.geom_conaffinity[floor] = 7 if task == "task2" else 0
+        # MuJoCo caches collision masks per body at compilation.
+        self.model.body_contype[:] = 0
+        self.model.body_conaffinity[:] = 0
+        for i in range(self.model.ngeom):
+            body = self.model.geom_bodyid[i]
+            self.model.body_contype[body] |= self.model.geom_contype[i]
+            self.model.body_conaffinity[body] |= self.model.geom_conaffinity[i]
         self.reset()
 
     def reset(self) -> None:
@@ -53,6 +84,9 @@ class TaskScene:
         self.data.ctrl[:7] = pose
         self.data.ctrl[7:14] = pose
         self.data.ctrl[14:] = 0.04
+        if self.task == "task2":
+            adr = self.model.joint("rod_free").qposadr[0]
+            self.data.qpos[adr:adr+3] = [0, 0, .30]
         mujoco.mj_forward(self.model, self.data)
 
     def body_position(self, name: str):

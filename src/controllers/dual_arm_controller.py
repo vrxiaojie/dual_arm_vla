@@ -29,25 +29,37 @@ class DualArmController:
         self.right.hold()
         self.data.qvel[:] = 0.0
 
-    def attach_rod(self):
+    def attach_rod(self, offset=.42, height=0.0):
         """Enable two endpoint constraints after bilateral grasp validation."""
         # Connect layout stores the body1-local (hand) anchor followed by the
         # body2-local (rod) anchor. Preserve the verified grasp pose instead
         # of snapping the rod to the hand origin when constraints activate.
         rod_id = self.model.body("rod").id
         rod_rotation = self.data.xmat[rod_id].reshape(3, 3)
-        for weld_id, endpoint in zip(self.weld_ids, (-0.42, 0.42)):
+        for weld_id, endpoint in zip(self.weld_ids, (-offset, offset)):
             hand_id = self.model.eq_obj1id[weld_id]
-            point = self.data.xpos[rod_id] + rod_rotation @ np.array([endpoint, 0.0, 0.0])
+            point = self.data.xpos[rod_id] + rod_rotation @ np.array([endpoint, 0.0, height])
             self.model.eq_data[weld_id, :3] = (
                 self.data.xmat[hand_id].reshape(3, 3).T @ (point - self.data.xpos[hand_id])
             )
-            self.model.eq_data[weld_id, 3:6] = (endpoint, 0.0, 0.0)
+            self.model.eq_data[weld_id, 3:6] = (endpoint, 0.0, height)
+        if height:
+            weld = self.model.equality("box_orientation_grasp").id
+            hand_id = self.left.body_id
+            self.model.eq_data[weld, 3:6] = self.data.xmat[hand_id].reshape(3, 3).T @ (
+                self.data.xpos[rod_id] - self.data.xpos[hand_id])
+            inverse = self.data.xquat[hand_id].copy()
+            inverse[1:] *= -1
+            quat = np.zeros(4)
+            mujoco.mju_mulQuat(quat, inverse, self.data.xquat[rod_id])
+            self.model.eq_data[weld, 6:10] = quat
+            self.data.eq_active[weld] = 1
         self.data.eq_active[self.weld_ids] = 1
         mujoco.mj_forward(self.model, self.data)
 
     def detach_rod(self):
         self.data.eq_active[self.weld_ids] = 0
+        self.data.eq_active[self.model.equality("box_orientation_grasp").id] = 0
 
     def disable_rod_contacts(self):
         """Isolate the released rod while preserving arm/table and arm/arm contact."""
@@ -55,7 +67,7 @@ class DualArmController:
             name = mujoco.mj_id2name(self.model, mujoco.mjtObj.mjOBJ_GEOM, geom_id) or ""
             if name.startswith(("left_", "right_")):
                 self.model.geom_conaffinity[geom_id] &= ~4
-            elif name == "rod_geom":
+            elif name == "rod_geom" or name.startswith("box_"):
                 self.model.geom_conaffinity[geom_id] &= ~3
 
     def restore_arm_collisions(self):

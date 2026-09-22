@@ -14,7 +14,7 @@ from src.safety import CollisionChecker, GraspMonitor
 from src.state_machine import StateMachine, TaskState
 
 
-class Task1Runner:
+class TaskRunner:
     def __init__(self, scene, config, viewer=None, command=None):
         self.scene, self.config, self.viewer = scene, config, viewer
         self.controller = DualArmController(scene.model, scene.data)
@@ -145,10 +145,11 @@ class Task1Runner:
 
         # The tool frame sits between the fingertips. Hidden contact proxies
         # provide the grasp forces while the Panda meshes provide the visuals.
-        grasp_z = rod[2]
+        box = self.scene.task == "task2"
+        grasp_z = rod[2] + (.26 if box else 0)
         left_grasp_target = np.array([rod[0] - self.config.grasp_offset, rod[1], grasp_z])
         right_grasp_target = np.array([rod[0] + self.config.grasp_offset, rod[1], grasp_z])
-        place_shift = self.command.target_position - np.array([rod[0], rod[1], 0.468])
+        place_shift = self.command.target_position - np.array([rod[0], rod[1], .30 if box else .468])
         # Descend vertically so contact cannot shove the free rod toward the
         # destination before the grasp has been verified.
         pre_left = left_grasp_target + np.array([0.0, 0.0, self.config.pregrasp_height])
@@ -177,7 +178,7 @@ class Task1Runner:
                 self._fail(f"{failed} grasp verification failed")
             else:
                 with self._viewer_lock():
-                    self.controller.attach_rod()
+                    self.controller.attach_rod(self.config.grasp_offset, .26 if box else 0)
 
         if self.machine.state is not TaskState.FAILURE_STOP:
             self.machine.advance()  # LIFT
@@ -234,29 +235,36 @@ class Task1Runner:
             report["final_rod_position_error_m"] < self.config.position_tolerance
             and report["final_rod_orientation_error_deg"] < self.config.orientation_tolerance_deg
         )
+        if self.scene.task == "task2":
+            rotation = self.scene.data.xmat[self.scene.model.body("rod").id].reshape(3, 3)
+            extent = .30 * np.abs(rotation).sum(axis=1)
+            delta = np.abs(self.scene.body_position("rod") - self.command.target_position)
+            inside = bool(np.all(delta[:2] + extent[:2] < .334))
+            report["inside_target_square"] = inside
+            numerical_success = numerical_success and inside
         if self.machine.state is TaskState.SUCCESS and not numerical_success:
-            self._fail("final rod pose outside tolerance")
+            self._fail("final object pose outside tolerance")
+        if self.scene.task == "task2":
+            report = {key.replace("rod", "box"): value for key, value in report.items()}
         report.update({
-            "task": "task1_rod_transport",
+            "task": "task2_box_transport" if self.scene.task == "task2" else "task1_rod_transport",
             "command": self.command.direction,
-            "target_region": "green" if self.command.direction == 1 else "blue",
+            "target_region": "floor_square" if self.scene.task == "task2" else ("green" if self.command.direction == 1 else "blue"),
             "result": "SUCCESS" if self.machine.state is TaskState.SUCCESS else "FAILURE",
             "failure_reason": self.failure_reason,
             "collision_detected": self.collision_detected,
             "left_grasp_success": self.left_grasp,
             "right_grasp_success": self.right_grasp,
-            "roles": ROLES,
+            "roles": {"left_arm": "box_left_handle_grasper", "right_arm": "box_right_handle_grasper"} if self.scene.task == "task2" else ROLES,
             "state_history": self.machine.history,
         })
         self.config.output_dir.mkdir(parents=True, exist_ok=True)
         stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-        path = self.config.output_dir / f"task1_{stamp}.json"
+        path = self.config.output_dir / f"{self.scene.task}_{stamp}.json"
         path.write_text(json.dumps(report, indent=2), encoding="utf-8")
         report["log_path"] = str(path)
         return report
 
 
-
-
-
-
+# Backward compatibility for task1 integrations and regression tests.
+Task1Runner = TaskRunner
