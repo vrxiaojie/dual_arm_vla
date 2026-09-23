@@ -11,12 +11,39 @@ import numpy as np
 
 from src.command_server import CommandServer
 from src.config import TaskConfig
+from src.config import (HANDOVER_SIZE, HANDOVER_TARGET, HANDOVER_HANDLE_OFFSET,
+                        HANDOVER_HANDLE_SIZE, HandoverCommand)
 from src.main import serve
 from src.scene import TaskScene
+from src.task import TaskRunner
 from test_commands import FakeViewer
 
 
 class HandoverTests(unittest.TestCase):
+    def test_large_block_handover_and_target_footprint(self):
+        with tempfile.TemporaryDirectory() as directory:
+            config = TaskConfig(output_dir=Path(directory))
+            scene = TaskScene(config.model_path)
+            scene.switch_task("task3")
+            np.testing.assert_allclose(HANDOVER_SIZE, [.27, .18, .09])
+            np.testing.assert_allclose(scene.model.geom("handover_object").size[:3] * 2, HANDOVER_SIZE)
+            for side, sign in (("left", -1), ("right", 1)):
+                handle = scene.model.geom(f"handover_handle_{side}")
+                np.testing.assert_allclose(handle.size[:3] * 2, HANDOVER_HANDLE_SIZE)
+                self.assertAlmostEqual(handle.pos[0], sign * HANDOVER_HANDLE_OFFSET)
+            np.testing.assert_allclose(scene.model.geom("handover_target").pos[:2], HANDOVER_TARGET[:2])
+            self.assertEqual(scene.model.geom("left_hand_geom").conaffinity[0], 14)
+            self.assertEqual(scene.model.geom("right_hand_geom").conaffinity[0], 13)
+            report = TaskRunner(scene, config, command=HandoverCommand()).run()
+            self.assertEqual(report["result"], "SUCCESS", report)
+            self.assertTrue(report["inside_target_region"])
+            self.assertFalse(report["collision_detected"])
+            self.assertLess(report["state_history"].index("RIGHT_GRASP"),
+                            report["state_history"].index("LEFT_RELEASE"))
+            self.assertTrue(report["left_grasp_success"] and report["right_grasp_success"])
+            scene.switch_task("task1")
+            self.assertAlmostEqual(float(scene.model.body("rod").mass[0]), 1.0)
+
     def test_switch_reset_transport_and_recover_over_tcp(self):
         with tempfile.TemporaryDirectory() as directory, CommandServer(0) as server:
             config = TaskConfig(output_dir=Path(directory))

@@ -113,9 +113,9 @@ Task2 logs include bilateral grasp verification, box position/orientation
 errors and `inside_target_square`, which checks the full box footprint.
 
 
-### Task3: upright block handover
+### Task3: block handover
 
-Task3 keeps the task1 arm base positions. The left arm picks up the upright block from the blue source, lifts it and offers it to the right arm. Both right fingers must contact the block before the left arm releases and retreats. The right arm then places it in the green target region. As in the existing tasks, simulated grasp constraints activate only after contact verification.
+Task3 keeps the task1 arm base positions. The main block is 270 × 180 × 90 mm, with its 270 mm edge along the world X axis on a support at (-0.32, 0.00) m. The Panda grippers cannot span its 180 mm width, so each end has an attached 100 × 60 × 40 mm grip. The left arm grasps the left grip, lifts the block and offers the right grip to the right arm. Both right finger pads must contact the right grip before the left arm releases and retreats. The right arm places the block on a separate support in the green target region centered at (0.38, -0.30) m. Arm-to-arm collision detection remains active throughout the handover. The dimensions and target are defined in `src/config.py`. Grasp constraints activate only after contact verification. The result includes `inside_target_region`, which checks the full block and both grips.
 
 Restart the main program to load the changes, then run in another terminal:
 

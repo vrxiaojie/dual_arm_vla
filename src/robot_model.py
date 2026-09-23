@@ -12,6 +12,10 @@ import math
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
+from src.config import (HANDOVER_SOURCE, HANDOVER_TARGET, HANDOVER_SIZE,
+                        HANDOVER_HANDLE_OFFSET, HANDOVER_HANDLE_SIZE,
+                        HANDOVER_REGION_HALF_SIZE)
+
 
 def _vector(value: str | None, size: int = 3) -> tuple[float, ...]:
     values = [float(item) for item in (value or "").split()]
@@ -269,13 +273,23 @@ def build_scene_xml(scene_path: Path, urdf_path: Path) -> bytes:
                       pos=f"{x} .30 .20", size=".13 .13 .20", rgba=".3 .33 .38 1",
                       contype="0", conaffinity="0")
     ET.SubElement(rod, "geom", name="handover_object", type="box",
-                  size=".18 .028 .24", rgba=".95 .62 .12 1", mass="0",
+                  size=" ".join(map(str, HANDOVER_SIZE / 2)), rgba=".95 .62 .12 1", mass="0",
                   contype="4", conaffinity="11")
-    for name, pos, color in (("source", "-.32 0 .436", ".15 .35 .9 .4"),
-                             ("target", ".32 -.25 .436", ".1 .9 .3 .4")):
+    for side, sign in (("left", -1), ("right", 1)):
+        ET.SubElement(rod, "geom", name=f"handover_handle_{side}", type="box",
+                      pos=f"{sign * HANDOVER_HANDLE_OFFSET} 0 0",
+                      size=" ".join(map(str, HANDOVER_HANDLE_SIZE / 2)),
+                      rgba=".20 .22 .25 1", mass="0", contype="4", conaffinity="11")
+    for name, center, color in (("source", HANDOVER_SOURCE, ".15 .35 .9 .4"),
+                                ("target", HANDOVER_TARGET, ".1 .9 .3 .4")):
+        x, y = center[:2]
         ET.SubElement(worldbody, "geom", name=f"handover_{name}", type="box",
-                      pos=pos, size=".23 .10 .006", rgba=color,
+                      pos=f"{x} {y} .431", size=f"{HANDOVER_REGION_HALF_SIZE[0]} {HANDOVER_REGION_HALF_SIZE[1]} .001", rgba=color,
                       contype="0", conaffinity="0")
+        ET.SubElement(worldbody, "geom", name=f"handover_{name}_support",
+                      type="box", pos=f"{x} {y} .4375",
+                      size=".10 .065 .0075", rgba=".35 .35 .38 1",
+                      contype="8", conaffinity="7")
     for side in ("left", "right"):
         ET.SubElement(scene_root.find("equality"), "weld", name=f"handover_{side}_weld",
                       body1=f"{side}_hand", body2="rod", active="false", solref=".02 1")

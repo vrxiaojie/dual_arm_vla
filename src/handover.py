@@ -1,6 +1,7 @@
-"""Sequential contact-verified left-to-right handover of an upright block."""
+"""Sequential contact-verified handover of a 270 x 180 x 90 mm block."""
 import mujoco
 import numpy as np
+from src.config import HANDOVER_HANDLE_OFFSET, HANDOVER_HANDLE_SIZE
 from src.state_machine import TaskState
 
 
@@ -36,18 +37,21 @@ def run_handover(r):
     def grasp(side, offset):
         arm = getattr(c, side)
         with r._viewer_lock():
-            arm.set_gripper(False)
+            # The narrow end grip sits between the two pads; preload the pads
+            # slightly so both make contact before the weld is enabled.
+            data.ctrl[arm.grip_ids] = HANDOVER_HANDLE_SIZE[1] / 2 - .006
         if not settle():
             return False
         contacts = set()
         for con in data.contact[:data.ncon]:
             names = {model.geom(con.geom1).name, model.geom(con.geom2).name}
-            if "handover_object" in names:
+            if f"handover_handle_{side}" in names:
                 for finger in (1, 2):
                     if f"{side}_finger{finger}_geom" in names:
                         contacts.add(finger)
         expected = scene.body_position("rod") + np.array(offset)
-        if len(contacts) != 2 or np.linalg.norm(arm.position - expected) > .025:
+        side_error = (arm.position[0] - scene.body_position("rod")[0]) * (-1 if side == "left" else 1)
+        if len(contacts) != 2 or np.linalg.norm(arm.position - expected) > .025 or side_error < .004:
             r._fail(f"{side} handover grasp verification failed (contacts={contacts})")
             return False
         setattr(r, f"{side}_grasp", True)
@@ -59,8 +63,9 @@ def run_handover(r):
         if not settle(100):
             return
         right_wait = c.right.position.copy()
-        left_offset = np.array([-.13, 0, .21])
-        right_offset = np.array([.13, 0, .21])
+        grasp_x = HANDOVER_HANDLE_OFFSET
+        left_offset = np.array([-grasp_x, 0, 0])
+        right_offset = np.array([grasp_x, 0, 0])
         pickup = scene.body_position("rod") + left_offset
         phase("LEFT_PRE_GRASP")
         if not move(pickup + [0, 0, .12], right_wait): return
@@ -70,7 +75,7 @@ def run_handover(r):
         if not grasp("left", left_offset): return
         phase("LEFT_LIFT")
         if not move(pickup + [0, 0, .14], right_wait): return
-        transfer = np.array([0, 0, .81])
+        transfer = np.array([0, 0, .70])
         phase("MOVE_TO_HANDOVER")
         if not move(transfer + left_offset, right_wait): return
         phase("RIGHT_APPROACH")
@@ -108,4 +113,3 @@ def run_handover(r):
         with r._viewer_lock():
             c.restore_arm_collisions()
     return r._finish()
-

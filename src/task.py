@@ -6,7 +6,8 @@ from datetime import datetime
 import mujoco
 import numpy as np
 
-from src.config import ROLES, TaskCommand
+from src.config import (HANDOVER_SIZE, HANDOVER_HANDLE_OFFSET, HANDOVER_HANDLE_SIZE,
+                        HANDOVER_REGION_HALF_SIZE, ROLES, TaskCommand)
 from src.controllers import DualArmController
 from src.metrics import Metrics
 from src.planning import smoothstep
@@ -245,6 +246,15 @@ class TaskRunner:
             inside = bool(np.all(delta[:2] + extent[:2] < .334))
             report["inside_target_square"] = inside
             numerical_success = numerical_success and inside
+        if self.scene.task == "task3":
+            rotation = self.scene.data.xmat[self.scene.model.body("rod").id].reshape(3, 3)
+            footprint = HANDOVER_SIZE / 2
+            footprint[0] = max(footprint[0], HANDOVER_HANDLE_OFFSET + HANDOVER_HANDLE_SIZE[0] / 2)
+            extent = np.abs(rotation[:2, :]) @ footprint
+            delta = np.abs(self.scene.body_position("rod")[:2] - self.command.target_position[:2])
+            inside = bool(np.all(delta + extent < HANDOVER_REGION_HALF_SIZE))
+            report["inside_target_region"] = inside
+            numerical_success = numerical_success and inside
         if self.machine.state is TaskState.SUCCESS and not numerical_success:
             self._fail("final object pose outside tolerance")
         if self.scene.task == "task2":
@@ -264,8 +274,8 @@ class TaskRunner:
             "state_history": self.machine.history,
         })
         if self.scene.task == "task3":
-            report.update(task="task3_handover", target_region="right_target",
-                          roles={"left_arm": "giver", "right_arm": "receiver"})
+            report.update(task="task3_handover", target_region="handover_target",
+                          roles={"left_arm": "left_long_edge_grasper", "right_arm": "right_long_edge_grasper"})
         self.config.output_dir.mkdir(parents=True, exist_ok=True)
         stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
         path = self.config.output_dir / f"{self.scene.task}_{stamp}.json"

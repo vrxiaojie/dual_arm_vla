@@ -5,6 +5,12 @@ import numpy as np
 
 
 ROOT = Path(__file__).resolve().parents[1]
+HANDOVER_SOURCE = np.array([-.32, 0.0, .49])
+HANDOVER_TARGET = np.array([.38, -.30, .49])
+HANDOVER_SIZE = np.array([.27, .18, .09])
+HANDOVER_HANDLE_OFFSET = .18
+HANDOVER_HANDLE_SIZE = np.array([.10, .06, .04])
+HANDOVER_REGION_HALF_SIZE = np.array([.29, .14])
 
 
 @dataclass
@@ -66,4 +72,4 @@ class HandoverCommand:
 
     @property
     def target_position(self):
-        return np.array([.32, -.25, .67])
+        return HANDOVER_TARGET.copy()

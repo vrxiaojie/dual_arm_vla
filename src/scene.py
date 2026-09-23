@@ -1,7 +1,9 @@
 from pathlib import Path
 
 import mujoco
+import numpy as np
 
+from src.config import HANDOVER_SOURCE, HANDOVER_SIZE
 from src.robot_model import build_scene_xml
 
 
@@ -34,6 +36,7 @@ class TaskScene:
         self.model.actuator_biasprm[:14, 1] = -650.0
         self.data = mujoco.MjData(self.model)
         self._object_inertia = self.model.body("rod").inertia.copy()
+        self._object_mass = float(self.model.body("rod").mass[0])
         self.task = "task1"
         self._rgba = self.model.geom_rgba.copy()
         self._masks = (self.model.geom_contype.copy(), self.model.geom_conaffinity.copy())
@@ -44,6 +47,12 @@ class TaskScene:
             raise ValueError("Unknown task")
         self.task = task
         self.model.body("rod").inertia[:] = [.06, .06, .06] if task == "task2" else self._object_inertia
+        self.model.body("rod").mass = self._object_mass
+        if task == "task3":
+            mass = 1.0
+            x, y, z = HANDOVER_SIZE
+            self.model.body("rod").mass = mass
+            self.model.body("rod").inertia[:] = mass / 12 * np.array([y*y+z*z, x*x+z*z, x*x+y*y])
         self.model.geom_rgba[:] = self._rgba
         self.model.geom_contype[:] = self._masks[0]
         self.model.geom_conaffinity[:] = self._masks[1]
@@ -93,7 +102,7 @@ class TaskScene:
             self.data.qpos[adr:adr+3] = [0, 0, .30]
         if self.task == "task3":
             adr = self.model.joint("rod_free").qposadr[0]
-            self.data.qpos[adr:adr+7] = [-.32, 0, .67, 1, 0, 0, 0]
+            self.data.qpos[adr:adr+7] = [*HANDOVER_SOURCE, 1, 0, 0, 0]
         mujoco.mj_forward(self.model, self.data)
 
     def body_position(self, name: str):
