@@ -5,16 +5,22 @@ import json
 import socket
 
 
-def send_command(command, port=8765):
+def send_command(command, port=8765, on_response=None):
     with socket.create_connection(('127.0.0.1', port), timeout=5) as connection:
         connection.settimeout(300)
         connection.sendall((json.dumps({'command': command}) + '\n').encode())
         with connection.makefile('rb') as stream:
             response = json.loads(stream.readline())
-            print(json.dumps(response, ensure_ascii=False), flush=True)
+            if on_response is None:
+                print(json.dumps(response, ensure_ascii=False), flush=True)
+            else:
+                on_response(response)
             if response['status'] == 'accepted':
                 response = json.loads(stream.readline())
-                print(json.dumps(response, ensure_ascii=False, indent=2), flush=True)
+                if on_response is None:
+                    print(json.dumps(response, ensure_ascii=False, indent=2), flush=True)
+                else:
+                    on_response(response)
             return response
 
 

@@ -3,6 +3,44 @@
 MuJoCo demo of two Franka Panda arms cooperatively transporting a rod with an
 explicit, safety-interlocked state machine.
 
+## Natural-language commands via LLM
+
+Copy `.env.example` to `.env` and fill in `LLM_BASE_URL` (the OpenAI-compatible
+API root, such as `https://api.openai.com/v1`), `LLM_API_KEY`, and `LLM_MODEL`.
+Set `LLM_REASONING_EFFORT` to `minimal`, `low`, `medium`, `high`, or `xhigh` only
+if the provider supports that request field; otherwise leave it blank. The
+local `.env` is ignored by Git. This client uses Python's standard library.
+
+Start the simulation in one terminal, then send an instruction in another:
+
+```powershell
+python scripts/run_task.py
+python scripts/natural_command.py "在搬运横杆的场景下，将杆子搬到绿色区域"
+```
+
+For a desktop interface, start the simulator and then run `python
+scripts/llm_gui.py` in a second terminal. The Tkinter window has an instruction
+input, Send button, LLM text output, parsed command list, and task status.
+Requests run in a background thread so the window remains responsive during
+LLM calls and robot motion. It reads the same `.env`; `--port` and `--env`
+are available if needed. Only one request runs at a time.
+
+The example plans `python scripts/send_command.py task1` followed by
+`python scripts/send_command.py 1`. The LLM returns only the final argument
+for each command; the client prints the full commands and executes them in
+order. `--dry-run` shows the plan without sending it to the simulator. Use
+`--port` if the command server is on a different local port.
+
+The system prompt in `src/llm_command.py` describes all three scenes:
+`task1` moves the rod to green (`1`) or blue (`2`); `task2` moves the box
+to the green square (`start`); `task3` hands a block from the left arm to the
+right, then places it in green (`start`). `reset` restores the current scene.
+For an ambiguous or unsupported request, the model should return no commands
+and a short explanation. The client validates the returned JSON against the
+allowed command sequences before sending anything, and stops if a command
+fails. This is currently a natural-language interface; no camera images are
+sent to the model.
+
 ```powershell
 # Terminal 1: start the viewer and wait for commands
 .\.venv\Scripts\python.exe scripts/run_task.py
