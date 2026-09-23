@@ -60,6 +60,14 @@ class LLMCommandTests(unittest.TestCase):
                 validate_plan(content)
         self.assertEqual(validate_plan('{"commands":[],"message":"场景不明确"}')[0], [])
 
+    def test_supported_task_sequences(self):
+        for commands in (["task1", "1"], ["task1", "2"],
+                         ["task2", "start"], ["task3", "start"], ["reset"]):
+            with self.subTest(commands=commands):
+                self.assertEqual(validate_plan(json.dumps({
+                    "commands": commands, "message": ""
+                }))[0], commands)
+
     def test_execution_stops_if_scene_switch_fails(self):
         config = LLMConfig("https://example.test/v1", "secret", "test-model")
         with patch("scripts.natural_command.load_config", return_value=config), \
