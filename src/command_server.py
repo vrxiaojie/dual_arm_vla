@@ -27,10 +27,10 @@ class CommandServer(socketserver.ThreadingTCPServer):
         self.thread.join()
 
     def submit(self, direction):
-        control = isinstance(direction, str) and direction in ("task1", "task2", "start", "reset")
+        control = isinstance(direction, str) and direction in ("task1", "task2", "task3", "start", "reset")
         command = direction if control else TaskCommand(direction)
         with self.guard:
-            if self.state != 'idle' and not (self.state == 'failed' and direction in ('reset', 'task1', 'task2')):
+            if self.state != 'idle' and not (self.state == 'failed' and direction in ('reset', 'task1', 'task2', 'task3')):
                 return None, {'status': self.state, 'message': 'No command accepted'}
             job = (command, threading.Event(), {})
             self.state = 'busy'
