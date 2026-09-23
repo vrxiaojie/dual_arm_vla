@@ -111,3 +111,18 @@ TCP also accepts `{"command":"task2"}`, `{"command":"task1"}`,
 return `accepted`, then `scene_ready` with the active task name.
 Task2 logs include bilateral grasp verification, box position/orientation
 errors and `inside_target_square`, which checks the full box footprint.
+
+
+### Task3: upright block handover
+
+Task3 keeps the task1 arm base positions. The left arm picks up the upright block from the blue source, lifts it and offers it to the right arm. Both right fingers must contact the block before the left arm releases and retreats. The right arm then places it in the green target region. As in the existing tasks, simulated grasp constraints activate only after contact verification.
+
+Restart the main program to load the changes, then run in another terminal:
+
+```powershell
+python scripts/send_command.py task3
+python scripts/send_command.py start
+python scripts/send_command.py reset
+```
+
+`task3` switches and initializes the scene; `start` executes the handover; `reset` restores the current task's object, arms, grippers and inactive grasp constraints. Repeating `start` after success returns `already_at_target`; reset before another demonstration. Run the client without arguments for the interactive menu. Commands during motion return `busy`; reset after motion ends.
