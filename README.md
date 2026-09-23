@@ -18,6 +18,13 @@ python scripts/run_task.py
 python scripts/natural_command.py "在搬运横杆的场景下，将杆子搬到绿色区域"
 ```
 
+For a desktop interface, start the simulator and then run `python
+scripts/llm_gui.py` in a second terminal. The Tkinter window has an instruction
+input, Send button, LLM text output, parsed command list, and task status.
+Requests run in a background thread so the window remains responsive during
+LLM calls and robot motion. It reads the same `.env`; `--port` and `--env`
+are available if needed. Only one request runs at a time.
+
 The example plans `python scripts/send_command.py task1` followed by
 `python scripts/send_command.py 1`. The LLM returns only the final argument
 for each command; the client prints the full commands and executes them in
