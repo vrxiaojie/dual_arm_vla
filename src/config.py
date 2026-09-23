@@ -58,3 +58,12 @@ class BoxCommand:
     @property
     def target_position(self):
         return np.array([0.0, -.42, .30])
+
+
+@dataclass(frozen=True)
+class HandoverCommand:
+    direction: str = "start"
+
+    @property
+    def target_position(self):
+        return np.array([.32, -.25, .67])

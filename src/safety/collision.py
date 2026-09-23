@@ -33,6 +33,11 @@ class CollisionChecker:
                     if not permitted:
                         self.last_reason = f"unexpected box contact: {box_geoms[0]} / {other}"
                         return True
+            if "handover_object" in names:
+                other = b if a == "handover_object" else a
+                if self._side(other) and not ("finger" in other or "hand_geom" in other):
+                    self.last_reason = f"unexpected handover object contact: {other}"
+                    return True
             if "floor" in names:
                 other = b if a == "floor" else a
                 if self._side(other):

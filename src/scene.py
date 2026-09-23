@@ -40,7 +40,7 @@ class TaskScene:
         self.switch_task("task1")
 
     def switch_task(self, task):
-        if task not in ("task1", "task2"):
+        if task not in ("task1", "task2", "task3"):
             raise ValueError("Unknown task")
         self.task = task
         self.model.body("rod").inertia[:] = [.06, .06, .06] if task == "task2" else self._object_inertia
@@ -49,8 +49,12 @@ class TaskScene:
         self.model.geom_conaffinity[:] = self._masks[1]
         for i in range(self.model.ngeom):
             name = self.model.geom(i).name
-            hidden = (name.startswith("box_") if task == "task1" else
-                      name in {"rod_geom", "table_top", "start_region", "target_region"})
+            hidden = (name.startswith("handover_") if task != "task3" else
+                      name.startswith("box_") or name in {"rod_geom", "start_region", "target_region"})
+            if task == "task1":
+                hidden = hidden or name.startswith("box_")
+            elif task == "task2":
+                hidden = hidden or name in {"rod_geom", "table_top", "start_region", "target_region"}
             if hidden:
                 self.model.geom_rgba[i, 3] = 0
                 self.model.geom_contype[i] = self.model.geom_conaffinity[i] = 0
@@ -87,6 +91,9 @@ class TaskScene:
         if self.task == "task2":
             adr = self.model.joint("rod_free").qposadr[0]
             self.data.qpos[adr:adr+3] = [0, 0, .30]
+        if self.task == "task3":
+            adr = self.model.joint("rod_free").qposadr[0]
+            self.data.qpos[adr:adr+7] = [-.32, 0, .67, 1, 0, 0, 0]
         mujoco.mj_forward(self.model, self.data)
 
     def body_position(self, name: str):

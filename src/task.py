@@ -132,6 +132,9 @@ class TaskRunner:
         raise NotImplementedError(f"Replanning not implemented: {failure_reason}")
 
     def run(self):
+        if self.scene.task == "task3":
+            from src.handover import run_handover
+            return run_handover(self)
         # INIT: let the rod settle and validate that both hands are initially clear.
         for _ in range(100):
             if not self._step(check_collision=False):
@@ -246,6 +249,8 @@ class TaskRunner:
             self._fail("final object pose outside tolerance")
         if self.scene.task == "task2":
             report = {key.replace("rod", "box"): value for key, value in report.items()}
+        if self.scene.task == "task3":
+            report = {key.replace("rod", "object"): value for key, value in report.items()}
         report.update({
             "task": "task2_box_transport" if self.scene.task == "task2" else "task1_rod_transport",
             "command": self.command.direction,
@@ -258,6 +263,9 @@ class TaskRunner:
             "roles": {"left_arm": "box_left_handle_grasper", "right_arm": "box_right_handle_grasper"} if self.scene.task == "task2" else ROLES,
             "state_history": self.machine.history,
         })
+        if self.scene.task == "task3":
+            report.update(task="task3_handover", target_region="right_target",
+                          roles={"left_arm": "giver", "right_arm": "receiver"})
         self.config.output_dir.mkdir(parents=True, exist_ok=True)
         stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
         path = self.config.output_dir / f"{self.scene.task}_{stamp}.json"

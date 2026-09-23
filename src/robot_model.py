@@ -268,6 +268,17 @@ def build_scene_xml(scene_path: Path, urdf_path: Path) -> bytes:
         ET.SubElement(worldbody, "geom", name=f"box_pedestal_{side}", type="box",
                       pos=f"{x} .30 .20", size=".13 .13 .20", rgba=".3 .33 .38 1",
                       contype="0", conaffinity="0")
+    ET.SubElement(rod, "geom", name="handover_object", type="box",
+                  size=".18 .028 .24", rgba=".95 .62 .12 1", mass="0",
+                  contype="4", conaffinity="11")
+    for name, pos, color in (("source", "-.32 0 .436", ".15 .35 .9 .4"),
+                             ("target", ".32 -.25 .436", ".1 .9 .3 .4")):
+        ET.SubElement(worldbody, "geom", name=f"handover_{name}", type="box",
+                      pos=pos, size=".23 .10 .006", rgba=color,
+                      contype="0", conaffinity="0")
+    for side in ("left", "right"):
+        ET.SubElement(scene_root.find("equality"), "weld", name=f"handover_{side}_weld",
+                      body1=f"{side}_hand", body2="rod", active="false", solref=".02 1")
     urdf_root = ET.parse(urdf_path).getroot()
     # The real Panda has a longer base-to-wrist reach than the former toy
     # chain.  Place the bases closer to the work area so both the source and
