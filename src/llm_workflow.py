@@ -4,11 +4,18 @@ from scripts.send_command import send_command
 from src.llm_command import load_config, plan_request
 
 
-def run_instruction(instruction, env_path, port, emit):
+def run_instruction(instruction, env_path, port, emit, *, stream=False):
     """Emit (kind, value) events; return True only when all commands succeed."""
     emit("status", "正在解析")
     try:
-        commands, message = plan_request(instruction, load_config(env_path))
+        config = load_config(env_path)
+        if stream:
+            commands, message = plan_request(
+                instruction, config,
+                on_delta=lambda kind, text: emit("llm_delta", {"channel": kind, "text": text}),
+            )
+        else:
+            commands, message = plan_request(instruction, config)
         emit("message", message or "已生成指令。")
         emit("plan", commands)
         if not commands:

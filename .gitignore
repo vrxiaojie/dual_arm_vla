@@ -6,3 +6,4 @@ __pycache__/
 outputs/logs/*
 outputs/screenshots/*
 tests/*
+!tests/test_llm_gui.py

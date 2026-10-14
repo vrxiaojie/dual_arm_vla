@@ -18,12 +18,24 @@ python scripts/run_task.py
 python scripts/natural_command.py "在搬运横杆的场景下，将杆子搬到绿色区域"
 ```
 
-For a desktop interface, start the simulator and then run `python
-scripts/llm_gui.py` in a second terminal. The Tkinter window has an instruction
-input, Send button, LLM text output, parsed command list, and task status.
-Requests run in a background thread so the window remains responsive during
-LLM calls and robot motion. It reads the same `.env`; `--port` and `--env`
-are available if needed. Only one request runs at a time.
+For an HTML interface, start the simulator and run `python scripts/llm_gui.py`
+in a second terminal. It opens `http://127.0.0.1:8080/` in your browser. The page
+includes editable instruction input, quick-test presets, a parsed command list,
+right-side execution logs, and live LLM content/reasoning deltas (when returned
+by the provider). Only validated, complete plans are executed. It reads the same
+`.env`; `--port` selects the simulator port, `--env` selects its configuration,
+`--web-port` changes the HTTP port, and `--no-browser` skips opening the browser.
+Only one request runs at a time; closing the page does not cancel robot motion.
+No additional dependencies are needed.
+
+Start the simulator with `--vision` to show its final visual verdict, confidence,
+reason, and top/side camera images on the page. The adjustable confidence
+threshold defaults to 0.8: SUCCESS at or above the threshold passes visual
+acceptance; low confidence or UNCERTAIN requires confirmation. This display
+never overrides the robot controller's execution result. `--capture-images`
+shows images without a visual verdict. Resets and scene switches have no final
+motion images. The planning LLM streams to the page; the simulator's separate
+visual LLM evaluation is displayed when its final report arrives.
 
 The example plans `python scripts/send_command.py task1` followed by
 `python scripts/send_command.py 1`. The LLM returns only the final argument

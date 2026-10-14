@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>双臂机械臂 · 指令控制台</title>
+<style>
+:root{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#e4eaf4;background:#0d1422;color-scheme:dark}*{box-sizing:border-box}body{margin:0;padding:32px}header{max-width:1440px;margin:0 auto 24px}h1{font-size:26px;margin:8px 0}h2{font-size:17px;margin:0 0 18px}p,.muted{color:#9aabc4;font-size:13px;line-height:1.7}main{max-width:1440px;margin:auto;display:grid;grid-template-columns:minmax(280px,370px) minmax(0,1fr);gap:20px}.card{background:#151f30;border:1px solid #29354a;border-radius:16px;padding:22px;margin-bottom:20px}label{display:block;font-size:13px;margin:16px 0 8px}textarea,select,input{width:100%;background:#0d1626;border:1px solid #394860;color:inherit;border-radius:8px;padding:12px;font:inherit}textarea{resize:vertical;min-height:180px;line-height:1.65}button{width:100%;margin-top:18px;background:#5f83ff;border:0;border-radius:8px;padding:13px;font:inherit;color:white;cursor:pointer}button:disabled{opacity:.5;cursor:wait}.status{display:inline-block;border-radius:20px;background:#25364c;padding:7px 14px;font-size:13px}.status.busy{background:#554520;color:#ffe197}.status.error{background:#542c36;color:#ffc0c5}.status.success{background:#1a493f;color:#a3f1d6}.heading{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:16px}.heading h2{margin:0}pre{white-space:pre-wrap;overflow-wrap:anywhere;font:13px/1.7 ui-monospace,monospace;margin:0}#logs{height:240px;overflow:auto;color:#b9c8df}#content,#reasoning{max-height:270px;overflow:auto;color:#d2def2}.empty:empty:before{content:attr(data-placeholder);color:#71829e}details{margin-bottom:18px}summary{cursor:pointer;font-size:14px;color:#a8b8d3;margin-bottom:12px}.cameras{display:grid;grid-template-columns:1fr 1fr;gap:14px}figure{margin:0;background:#0d1626;border-radius:10px;overflow:hidden}figcaption{padding:10px 14px;font-size:13px;color:#a8b8d3}img{width:100%;display:block;aspect-ratio:4/3;object-fit:contain}img[hidden]{display:none}.camera-empty{padding:55px 16px;text-align:center;color:#71829e;font-size:13px}#vision{margin-bottom:18px;font-size:14px;line-height:1.8;white-space:pre-wrap}#plan{color:#a3f1d6}#message{margin:14px 0 0;white-space:pre-wrap}#form-error{color:#ffb2bc;white-space:pre-wrap}@media(max-width:850px){body{padding:18px}main{grid-template-columns:1fr}.cameras{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header><div class="muted">DUAL ARM / LLM CONTROL</div><h1>双臂机械臂指令控制台</h1><p>输入自然语言指令，查看模型流式输出、执行进度与双视角视觉验收。</p></header>
+<main>
+<section><form id="form" class="card"><h2>自然语言指令</h2><label for="presets">测试预设</label><select id="presets"><option value="">选择预设提示词…</option><option>在搬运横杆的场景下，将杆子搬到绿色区域</option><option>在搬运横杆的场景下，将杆子搬到蓝色区域</option><option>在搬运箱子的场景下，将箱子搬进绿色方框</option><option>在双臂交接的场景下，左臂将方块交给右臂，放入绿色目标区</option><option>切换到横杆搬运场景</option><option>切换到箱子搬运场景</option><option>切换到双臂交接场景</option><option>重置当前场景</option><option>开始搬运</option></select><label for="instruction">提示词</label><textarea id="instruction" maxlength="4000" required placeholder="例如：在搬运横杆的场景下，将杆子搬到绿色区域"></textarea><label for="threshold">视觉置信度阈值</label><input id="threshold" type="number" min="0" max="1" step="0.01" value="0.8" required><p>视觉判定为 SUCCESS 且置信度达到阈值时通过。图像由模拟器的 --vision 或 --capture-images 参数开启。</p><button id="send" type="submit">发送并执行</button><p>Ctrl / ⌘ + Enter 快速发送</p><div id="form-error" role="alert"></div></form><section class="card"><h2>指令解析</h2><pre id="plan" class="empty" data-placeholder="等待 LLM 生成指令…"></pre><p id="message"></p></section></section>
+<section>
+<section class="card"><div class="heading"><h2>执行日志</h2><span id="status" class="status" role="status">空闲</span></div><pre id="logs" class="empty" data-placeholder="执行状态和命令结果将显示在这里" aria-live="polite"></pre></section>
+<section class="card"><h2>LLM 实时输出</h2><details open><summary>思考内容（接口返回时显示）</summary><pre id="reasoning" class="empty" data-placeholder="尚未收到思考内容"></pre></details><pre id="content" class="empty" data-placeholder="等待模型流式正文…"></pre></section>
+<section class="card"><h2>视觉验收 · 最终相机图像</h2><div id="vision">等待执行结束后的视觉数据</div><div class="cameras"><figure><figcaption>TOP / 俯视相机</figcaption><img id="top_view" alt="任务结束时的俯视相机图像" hidden><div class="camera-empty" id="top_view-empty">等待俯视图像</div></figure><figure><figcaption>SIDE / 侧视相机</figcaption><img id="side_view" alt="任务结束时的侧视相机图像" hidden><div class="camera-empty" id="side_view-empty">等待侧视图像</div></figure></div></section>
+</section>
+</main>
+<script>
+const $=id=>document.getElementById(id);let stream=null;
+function log(text){$('logs').textContent+=`[${new Date().toLocaleTimeString()}] ${text}\n`;$('logs').scrollTop=$('logs').scrollHeight;}
+function status(text){$('status').textContent=text;$('status').className='status '+(text.includes('失败')?'error':text.includes('完成')?'success':text==='空闲'?'':'busy');}
+function event({kind,value}){
+ if(kind==='status'){status(value);log(value);}
+ else if(kind==='llm_delta'){const target=$(value.channel==='reasoning'?'reasoning':'content');target.textContent+=value.text;target.scrollTop=target.scrollHeight;}
+ else if(kind==='message'){$('message').textContent=value;log('LLM：'+value);}
+ else if(kind==='plan'){$('plan').textContent=value.length?value.map((arg,i)=>`${i+1}. python scripts/send_command.py ${arg}`).join('\n'):'无可执行指令';}
+ else if(kind==='response'){const [command,response]=value;const report=response.report||{};log(`${command}：${response.status}${report.result?' / '+report.result:''}${response.message?' — '+response.message:''}${report.failure_reason?' — '+report.failure_reason:''}`);}
+ else if(kind==='vision'){
+ const lines=[`${value.command}：${value.acceptance}`];
+ if(value.verdict)lines.push(`判定：${value.verdict} · 置信度：${value.confidence} · 阈值：${value.threshold}`);
+ if(value.reason)lines.push(value.reason);if(value.error)lines.push('错误：'+value.error);
+ $('vision').textContent=lines.join('\n');log(lines.join(' / '));
+ for(const name of ['top_view','side_view']){const url=value.images?.[name];$(name).hidden=!url;$(name+'-empty').hidden=!!url;if(url)$(name).src=url;else $(name).removeAttribute('src');}
+ }
+ else if(kind==='error')log('错误：'+value);
+ else if(kind==='done'){stream.close();stream=null;$('send').disabled=false;}
+}
+$('presets').addEventListener('change',()=>{if($('presets').value)$('instruction').value=$('presets').value;$('instruction').focus();});
+$('instruction').addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){e.preventDefault();$('form').requestSubmit();}});
+$('form').addEventListener('submit',async e=>{
+ e.preventDefault();if($('send').disabled)return;
+ const instruction=$('instruction').value.trim();if(!instruction){$('form-error').textContent='请输入指令';return;}
+ $('send').disabled=true;$('form-error').textContent='';
+ try{
+ const response=await fetch('/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({instruction,threshold:Number($('threshold').value)})});
+ const result=await response.json();if(!response.ok)throw new Error(result.error||'请求失败');
+ for(const id of ['logs','plan','message','reasoning','content'])$(id).textContent='';
+ $('vision').textContent='等待执行结束后的视觉数据';for(const name of ['top_view','side_view']){$(name).hidden=true;$(name).removeAttribute('src');$(name+'-empty').hidden=false;}
+ log('你：'+instruction);status('正在解析');
+ stream=new EventSource('/events/'+result.job_id);stream.onmessage=e=>event(JSON.parse(e.data));
+ stream.onerror=()=>{log('日志连接中断，正在重新连接；任务继续执行。');};
+ }catch(error){$('form-error').textContent=error.message;$('send').disabled=false;}
+});
+</script>
+</body></html>

@@ -89,7 +89,7 @@ def validate_plan(content: str) -> tuple[list[str], str]:
     return commands, message
 
 
-def plan_request(instruction: str, config: LLMConfig) -> tuple[list[str], str]:
+def plan_request(instruction: str, config: LLMConfig, on_delta=None) -> tuple[list[str], str]:
     payload = {
         "model": config.model,
         "messages": [
@@ -99,11 +99,13 @@ def plan_request(instruction: str, config: LLMConfig) -> tuple[list[str], str]:
     }
     if config.reasoning_effort:
         payload["reasoning_effort"] = config.reasoning_effort
-    return validate_plan(request_content(payload, config))
+    return validate_plan(request_content(payload, config, on_delta=on_delta))
 
 
-def request_content(payload: dict, config: LLMConfig) -> str:
+def request_content(payload: dict, config: LLMConfig, on_delta=None) -> str:
     """Send a Chat Completions payload and extract its textual JSON answer."""
+    if on_delta is not None:
+        payload = dict(payload, stream=True)
     endpoint = config.base_url + "/chat/completions"
     http_request = request.Request(
         endpoint, data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
@@ -119,6 +121,8 @@ def request_content(payload: dict, config: LLMConfig) -> str:
         tls_options["context"] = ssl.create_default_context(cafile="/etc/ssl/cert.pem")
     try:
         with request.urlopen(http_request, timeout=60, **tls_options) as response:
+            if on_delta is not None and "text/event-stream" in response.headers.get("Content-Type", ""):
+                return _read_stream(response, on_delta)
             result = json.load(response)
     except error.HTTPError as exc:
         raise ValueError(f"LLM API returned HTTP {exc.code}") from exc
@@ -130,4 +134,53 @@ def request_content(payload: dict, config: LLMConfig) -> str:
         raise ValueError("LLM API response has no message content") from exc
     if not isinstance(content, str):
         raise ValueError("LLM API message content must be text")
+    if on_delta is not None:
+        message = result["choices"][0]["message"]
+        reasoning = message.get("reasoning_content") or message.get("reasoning")
+        if isinstance(reasoning, str):
+            on_delta("reasoning", reasoning)
+        on_delta("content", content)
     return content
+
+
+def _read_stream(response, on_delta):
+    """Read SSE events, including provider-supplied reasoning deltas."""
+    parts = []
+    data = []
+
+    def dispatch():
+        raw = "\n".join(data)
+        data.clear()
+        if raw == "[DONE]":
+            return True
+        try:
+            event = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            raise ValueError("Invalid LLM stream event") from exc
+        if event.get("error"):
+            raise ValueError("LLM API returned a stream error")
+        choices = event.get("choices") or []
+        if not choices:
+            return False
+        delta = choices[0].get("delta") or {}
+        reasoning = delta.get("reasoning_content") or delta.get("reasoning")
+        if isinstance(reasoning, str) and reasoning:
+            on_delta("reasoning", reasoning)
+        content = delta.get("content")
+        if isinstance(content, str) and content:
+            parts.append(content)
+            on_delta("content", content)
+        return False
+
+    for line in response:
+        line = line.decode("utf-8").rstrip("\r\n")
+        if not line:
+            if data and dispatch():
+                break
+        elif line.startswith("data:"):
+            data.append(line[5:].lstrip(" "))
+    if data:
+        dispatch()
+    if not parts:
+        raise ValueError("LLM API stream has no message content")
+    return "".join(parts)
