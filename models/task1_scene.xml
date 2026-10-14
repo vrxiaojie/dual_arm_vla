@@ -15,7 +15,8 @@
   </asset>
   <worldbody>
     <light pos="0 -1 2" dir="0 .4 -1"/>
-    <geom name="floor" type="plane" size="3 3 .1" rgba=".15 .17 .2 1" contype="0" conaffinity="0"/>
+    <!-- Compile the floor into collision structures; TaskScene enables it only for task2. -->
+    <geom name="floor" type="plane" size="3 3 .1" rgba=".15 .17 .2 1" contype="8" conaffinity="7"/>
     <body name="table" pos="0 0 .38"><geom name="table_top" type="box" size="1.15 .8 .05" material="tablemat" mass="0"/></body>
     <geom name="start_region" type="box" pos="0 0 .436" size=".58 .10 .006" rgba=".15 .35 .9 .25" contype="0" conaffinity="0"/>
     <geom name="target_region" type="box" pos="0 -.42 .436" size=".58 .10 .006" material="targetmat" contype="0" conaffinity="0"/>
