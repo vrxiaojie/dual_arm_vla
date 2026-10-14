@@ -1,6 +1,9 @@
 """Translate natural-language requests into the existing command arguments."""
 
 import json
+import os
+import ssl
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from urllib import error, request
@@ -96,14 +99,26 @@ def plan_request(instruction: str, config: LLMConfig) -> tuple[list[str], str]:
     }
     if config.reasoning_effort:
         payload["reasoning_effort"] = config.reasoning_effort
+    return validate_plan(request_content(payload, config))
+
+
+def request_content(payload: dict, config: LLMConfig) -> str:
+    """Send a Chat Completions payload and extract its textual JSON answer."""
     endpoint = config.base_url + "/chat/completions"
     http_request = request.Request(
         endpoint, data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
         headers={"Authorization": f"Bearer {config.api_key}", "Content-Type": "application/json"},
         method="POST",
     )
+    tls_options = {}
+    # Some python.org macOS installations lack their bundled CA file. Use
+    # Apple's system bundle, with full verification, unless explicitly overridden.
+    if (sys.platform == "darwin" and "SSL_CERT_FILE" not in os.environ
+            and ssl.get_default_verify_paths().cafile is None
+            and Path("/etc/ssl/cert.pem").is_file()):
+        tls_options["context"] = ssl.create_default_context(cafile="/etc/ssl/cert.pem")
     try:
-        with request.urlopen(http_request, timeout=60) as response:
+        with request.urlopen(http_request, timeout=60, **tls_options) as response:
             result = json.load(response)
     except error.HTTPError as exc:
         raise ValueError(f"LLM API returned HTTP {exc.code}") from exc
@@ -115,4 +130,4 @@ def plan_request(instruction: str, config: LLMConfig) -> tuple[list[str], str]:
         raise ValueError("LLM API response has no message content") from exc
     if not isinstance(content, str):
         raise ValueError("LLM API message content must be text")
-    return validate_plan(content)
+    return content

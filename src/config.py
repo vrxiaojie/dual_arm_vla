@@ -29,6 +29,8 @@ class TaskConfig:
     orientation_tolerance_deg: float = 10.0
     sync_tolerance: float = 0.05
     realtime: bool = False
+    capture_images: bool = False
+    vision_env_path: Path | None = None
 
 
 @dataclass(frozen=True)

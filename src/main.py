@@ -4,6 +4,7 @@ from dataclasses import replace
 import json
 import queue
 import time
+from pathlib import Path
 import numpy as np
 from src.command_server import CommandServer
 from src.config import TaskConfig, BoxCommand, HandoverCommand
@@ -64,8 +65,9 @@ def serve(scene, config, server, viewer=None):
             print(f"Task failed: {exc}", flush=True)
 
 
-def run(headless=False, realtime=False, port=8765):
-    config = TaskConfig(realtime=realtime or not headless)
+def run(headless=False, realtime=False, port=8765, capture_images=False, vision_env=None):
+    config = TaskConfig(realtime=realtime or not headless,
+                        capture_images=capture_images, vision_env_path=vision_env)
     scene = TaskScene(config.model_path, config.robot_urdf_path)
     with CommandServer(port) as server:
         if headless:
@@ -81,9 +83,13 @@ def main():
     parser.add_argument('--headless', action='store_true', help='wait for commands without a viewer')
     parser.add_argument('--realtime', action='store_true', help='pace simulation steps to real time')
     parser.add_argument('--port', type=int, default=8765)
+    parser.add_argument('--capture-images', action='store_true', help='save top/side RGB images after motion')
+    parser.add_argument('--vision', action='store_true', help='capture and evaluate final images using the configured LLM')
+    parser.add_argument('--env', type=Path, default=Path(__file__).resolve().parents[1] / '.env')
     args = parser.parse_args()
     try:
-        run(args.headless, args.realtime, args.port)
+        run(args.headless, args.realtime, args.port, args.capture_images,
+            args.env if args.vision else None)
     except KeyboardInterrupt:
         return 0
     except OSError as exc:

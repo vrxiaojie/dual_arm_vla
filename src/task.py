@@ -279,6 +279,11 @@ class TaskRunner:
         self.config.output_dir.mkdir(parents=True, exist_ok=True)
         stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
         path = self.config.output_dir / f"{self.scene.task}_{stamp}.json"
+        if self.config.capture_images or self.config.vision_env_path is not None:
+            from src.vision import inspect_final_state
+            report["visual_evaluation"] = inspect_final_state(
+                self.scene, self.command, path.with_suffix(''), self.config.vision_env_path,
+                capture_lock=self._viewer_lock())
         path.write_text(json.dumps(report, indent=2), encoding="utf-8")
         report["log_path"] = str(path)
         return report

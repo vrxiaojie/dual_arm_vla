@@ -108,3 +108,16 @@ class TaskScene:
     def body_position(self, name: str):
         body = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, name)
         return self.data.xpos[body].copy()
+
+    def capture_rgb(self, width=960, height=720):
+        """Return independent H×W×3 uint8 RGB arrays from both fixed cameras.
+
+        Call on the simulation thread, while stepping is paused. The renderer
+        owns an OpenGL context and is closed before returning.
+        """
+        with mujoco.Renderer(self.model, height=height, width=width) as renderer:
+            frames = {}
+            for camera in ("top_view", "side_view"):
+                renderer.update_scene(self.data, camera=camera)
+                frames[camera] = renderer.render().copy()
+        return frames

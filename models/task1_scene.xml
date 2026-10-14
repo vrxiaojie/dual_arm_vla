@@ -1,7 +1,7 @@
 <mujoco model="dual_franka_panda_task1">
   <compiler angle="radian" autolimits="true"/>
   <option timestep="0.004" gravity="0 0 -9.81" integrator="implicitfast" cone="elliptic"/>
-  <visual><global azimuth="135" elevation="-25"/><headlight ambient=".35 .35 .35" diffuse=".7 .7 .7"/></visual>
+  <visual><global azimuth="135" elevation="-25" offwidth="960" offheight="720"/><headlight ambient=".35 .35 .35" diffuse=".7 .7 .7"/></visual>
   <default>
     <joint damping="3" armature=".05"/>
     <geom friction="1 .01 .001" condim="4" solref=".01 1"/>
@@ -14,6 +14,10 @@
     <material name="targetmat" rgba=".1 .8 .25 .25"/>
   </asset>
   <worldbody>
+    <!-- Fixed world cameras: local -Z is the viewing direction. -->
+    <!-- Distant top camera reduces height-dependent perspective enlargement. -->
+    <camera name="top_view" pos="0 -.12 10" xyaxes="1 0 0 0 1 0" fovy="15"/>
+    <camera name="side_view" pos="0 -3 .95" xyaxes="1 0 0 0 .15 .989" fovy="48"/>
     <light pos="0 -1 2" dir="0 .4 -1"/>
     <!-- Compile the floor into collision structures; TaskScene enables it only for task2. -->
     <geom name="floor" type="plane" size="3 3 .1" rgba=".15 .17 .2 1" contype="8" conaffinity="7"/>

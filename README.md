@@ -38,8 +38,87 @@ right, then places it in green (`start`). `reset` restores the current scene.
 For an ambiguous or unsupported request, the model should return no commands
 and a short explanation. The client validates the returned JSON against the
 allowed command sequences before sending anything, and stops if a command
-fails. This is currently a natural-language interface; no camera images are
-sent to the model.
+fails. To also send final-state camera images to the model, start the simulator
+with `--vision` as described below.
+
+## Final-state RGB cameras and visual LLM evaluation
+
+The MJCF includes fixed `top_view` and `side_view` cameras for all three scenes.
+`scene.capture_rgb()` uses `mujoco.Renderer` to return a dictionary of independent
+960 × 720 × 3 `uint8` RGB arrays. Call it on the simulation thread while stepping
+is paused; it does not advance physics or change the interactive viewer camera.
+In the MuJoCo viewer, select either named camera from the camera selector.
+
+```sh
+# Capture and send both views to the model after each executed motion
+python scripts/run_task.py --vision
+# Or only save RGB PNGs without a model request
+python scripts/run_task.py --headless --capture-images
+```
+
+`--vision` reads the existing `.env` (`--env PATH` overrides it). The provider
+must support Chat Completions image input (`image_url` with base64 PNG data).
+The visual request uses `response_format: {"type": "json_object"}` to request
+structured output; the provider must support this option as well.
+Both views are sent in one request with the task and destination; simulator
+success flags and numerical measurements are not included. The prompt in
+`src/vision.py` checks full target occupancy and visible placement/release,
+and explicitly excludes claims about motion history or collision avoidance.
+The occupancy criteria match the existing task evaluators: task2 checks the
+cube body footprint (its handles extend beyond the square); task3 includes
+both grips. The distant top camera reduces perspective enlargement of raised
+objects while retaining compatibility with MuJoCo 3.1.
+
+After every executed motion, including a failed motion, images are saved next
+to its JSON log under `outputs/logs/<run>/`. The returned TCP report and saved
+log contain `visual_evaluation`, with image paths, status, and a validated
+`verdict` (`SUCCESS`, `FAILURE`, `UNCERTAIN`), numeric `confidence` in [0, 1], and
+`reason`. An API/rendering/JSON error has `status: error`; captured files are
+retained. `--capture-images` alone produces `status: captured` without a verdict.
+Visual inspection is recorded independently of the controller's `result` and
+safety interlocks; check both when deciding whether a task passed visual
+acceptance. A static image cannot establish successful handover history or
+stability over time. Scene switches, resets and `already_at_target` shortcuts
+do not execute motion and do not request visual evaluation.
+
+The simulator waits for the visual request before completing the command
+(HTTP timeout: 60 seconds), so new motion commands remain busy during evaluation.
+Offscreen rendering requires a working OpenGL backend even with `--headless`.
+On macOS, launch the passive viewer using `mjpython scripts/run_task.py --vision`
+if required by MuJoCo; the headless test runs with ordinary Python.
+
+Run the dedicated test separately:
+
+```sh
+python -m unittest discover -s tests -p test_vision.py -v
+# Real rendering and robot motion, with no network request
+python scripts/test_vision.py
+# Real model calls: source-state negatives and completed-state positives
+python scripts/test_vision.py --live
+# Limit to one scene (task1 includes both green and blue destinations)
+python scripts/test_vision.py --live --task task1
+```
+
+The script saves screenshots and `summary.json` under
+`outputs/screenshots/vision_test/` (`--output PATH` overrides it). Live tests
+require exact expected verdicts: `UNCERTAIN`, API errors and motion failures
+fail the test. Render-only mode checks capture/motion, without claiming model
+accuracy. Live mode sends eight pairs of views for all scenes, uses the configured
+API account, and exits nonzero if any case fails.
+
+On macOS Python installations missing the default CA file, the API client uses
+`/etc/ssl/cert.pem` with HTTPS verification enabled. An explicit `SSL_CERT_FILE`
+setting takes precedence.
+
+Local live check on 2026-10-14 with the configured model: 7 of 8 cases matched
+the expected verdicts. Both rod destinations and box transport passed their
+positive/negative checks. The handover initial state was correctly rejected,
+but its completed state was judged `FAILURE`: the model interpreted an overhead
+gripper/object overlap as possible continued contact despite the clearance in
+the side view. This is a model judgment limitation, so the dedicated test exits
+nonzero and retains the failed case rather than accepting it. Results and images
+are in `outputs/screenshots/vision_json_mode/summary.json`. These eight examples
+are a local smoke test, not an estimate of general visual accuracy.
 
 ```powershell
 # Terminal 1: start the viewer and wait for commands
